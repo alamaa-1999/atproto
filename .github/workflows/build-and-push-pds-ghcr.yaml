@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - msi/pds-otel
+      - sunnahsky-week1
 
 env:
   REGISTRY: ghcr.io
@@ -15,7 +16,6 @@ env:
 
 jobs:
   pds-container-ghcr:
-    if: github.repository == 'bluesky-social/atproto'
     runs-on: ubuntu-22.04
     permissions:
       contents: read
