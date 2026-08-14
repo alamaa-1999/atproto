@@ -68,7 +68,13 @@
           }
         }
       },
-      "errors": [{ "name": "InvalidSwap" }]
+      "errors": [
+        { "name": "InvalidSwap" },
+        {
+          "name": "CatcherTopLevelPostNotAllowed",
+          "description": "Catcher-role accounts may only reply to existing threads, not create top-level posts."
+        }
+      ]
     }
   }
 }

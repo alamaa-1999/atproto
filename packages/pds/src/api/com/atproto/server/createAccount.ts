@@ -14,6 +14,7 @@ import {
   InvalidRequestError,
   type Server,
 } from '@atproto/xrpc-server'
+import type { Role } from '../../../../account-manager/db/index.js'
 import { NEW_PASSWORD_MAX_LENGTH } from '../../../../account-manager/helpers/scrypt.js'
 import type { AppContext } from '../../../../context.js'
 import { events } from '../../../../events.js'
@@ -27,7 +28,7 @@ export default function (server: Server, ctx: AppContext) {
       durationMs: 5 * MINUTE,
       points: 100,
     },
-    auth: ctx.authVerifier.userServiceAuthOptional,
+    auth: ctx.authVerifier.userServiceAuthOrAdminTokenOptional,
     handler: async ({
       input,
       auth,
@@ -36,7 +37,18 @@ export default function (server: Server, ctx: AppContext) {
       // @NOTE Until this code and the OAuthStore's `createAccount` are
       // refactored together, any change made here must be reflected over there.
 
-      const requester = auth.credentials?.did ?? null
+      const requester =
+        auth.credentials?.type === 'user_service_auth'
+          ? auth.credentials.did
+          : null
+
+      // Striker is a manually-granted, vetted status: only an
+      // admin-authenticated caller (goat/curl with PDS_ADMIN_PASSWORD) can
+      // request it. Every other caller is forced to Catcher, regardless of
+      // what "role" they send.
+      const isAdmin = auth.credentials?.type === 'admin_token'
+      const role = isAdmin && input.body.role === 'striker' ? 'striker' : 'catcher'
+
       const {
         did,
         handle,
@@ -48,7 +60,7 @@ export default function (server: Server, ctx: AppContext) {
         deactivated,
       } = ctx.entrywayClient
         ? await validateInputsForEntrywayPds(ctx, input.body)
-        : await validateInputsForLocalPds(ctx, input.body, requester)
+        : await validateInputsForLocalPds(ctx, input.body, requester, role)
 
       await ctx.actorStore.create(did, signingKey)
 
@@ -74,6 +86,7 @@ export default function (server: Server, ctx: AppContext) {
           const creds = await ctx.accountManager.createAccountAndSession({
             did,
             handle,
+            role,
             email,
             password,
             repoCid: commit.cid,
@@ -208,6 +221,7 @@ const validateInputsForLocalPds = async (
   ctx: AppContext,
   input: com.atproto.server.createAccount.$InputBody,
   requester: string | null,
+  role: Role,
 ) => {
   const { email, password, inviteCode } = input
   if (input.plcOp) {
@@ -238,7 +252,7 @@ const validateInputsForLocalPds = async (
   // normalize & ensure valid handle
   const handle = await ctx.accountManager.normalizeAndValidateHandle(
     input.handle,
-    { did: input.did },
+    { role },
   )
 
   // check that the invite code still has uses

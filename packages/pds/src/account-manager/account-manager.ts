@@ -37,6 +37,7 @@ import type { Sequencer } from '../sequencer/index.js'
 import {
   type AccountDb,
   type EmailTokenPurpose,
+  type Role,
   getDb,
   getMigrator,
 } from './db/index.js'
@@ -169,10 +170,10 @@ export class AccountManager {
   async normalizeAndValidateHandle(
     handle: string,
     {
-      did,
+      role,
       allowAnyValid = false,
     }: {
-      did?: string
+      role?: Role
       allowAnyValid?: boolean
     } = {},
   ): Promise<HandleString> {
@@ -192,38 +193,55 @@ export class AccountManager {
         'InvalidHandle',
       )
     }
-    if (isServiceDomain(normalized, this.serviceHandleDomains)) {
-      // verify constraints on a service domain
-      ensureHandleServiceConstraints(
-        normalized,
-        this.serviceHandleDomains,
-        allowAnyValid,
+    // No external domains, ever, for anyone — creating an account or
+    // updating an existing one. Every handle must live under one of our own
+    // service domains; there is no "bring your own domain" on Sunnahsky.
+    if (!isServiceDomain(normalized, this.serviceHandleDomains)) {
+      throw new InvalidRequestError(
+        'Not a supported handle domain',
+        'UnsupportedDomain',
       )
-    } else {
-      // When creating an account (no did yet), we require the handle to be a
-      // local service domain. Updating to a custom handle will be possible once
-      // the account was created.
-      if (did == null) {
-        throw new InvalidRequestError(
-          'Not a supported handle domain',
-          'UnsupportedDomain',
-        )
-      }
-
-      // verify resolution of a non-service domain
-      const resolvedDid = await this.idResolver.handle.resolve(normalized)
-      if (resolvedDid !== did) {
-        // @TODO This should use a distinct error code
-        throw new InvalidRequestError('External handle did not resolve to DID')
-      }
+    }
+    ensureHandleServiceConstraints(
+      normalized,
+      this.serviceHandleDomains,
+      allowAnyValid,
+    )
+    if (role) {
+      this.ensureHandleMatchesRole(normalized, role)
     }
 
     return normalized
   }
 
+  // Catcher handles must live under the "guest" subdomain (visible,
+  // intentional labeling — never a bare service-domain handle); Strikers
+  // must use the bare service domain, never the "guest" one. Checked against
+  // catcherHandleDomain first since it's a suffix of strikerHandleDomain
+  // (".guest.sunnahsky.com" also ends with ".sunnahsky.com").
+  private ensureHandleMatchesRole(handle: string, role: Role): void {
+    const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
+    const isCatcherHandle = handle.endsWith(catcherHandleDomain)
+    const isStrikerHandle = !isCatcherHandle && handle.endsWith(strikerHandleDomain)
+
+    if (role === 'catcher' && !isCatcherHandle) {
+      throw new InvalidRequestError(
+        `Catchers must use a ${catcherHandleDomain} handle`,
+        'UnsupportedDomain',
+      )
+    }
+    if (role === 'striker' && !isStrikerHandle) {
+      throw new InvalidRequestError(
+        `Strikers must use a ${strikerHandleDomain} handle`,
+        'UnsupportedDomain',
+      )
+    }
+  }
+
   async createAccount({
     did,
     handle,
+    role,
     email,
     password,
     repoCid,
@@ -234,6 +252,7 @@ export class AccountManager {
   }: {
     did: DidString
     handle: HandleString
+    role: Role
     email?: string
     password?: string
     repoCid: Cid
@@ -255,7 +274,12 @@ export class AccountManager {
         await invite.ensureInviteIsAvailable(dbTxn, inviteCode)
       }
 
-      await accountHelpers.registerActor(dbTxn, { did, handle, deactivated })
+      await accountHelpers.registerActor(dbTxn, {
+        did,
+        handle,
+        role,
+        deactivated,
+      })
 
       if (email && passwordScrypt) {
         await accountHelpers.registerAccount(dbTxn, {
@@ -286,6 +310,7 @@ export class AccountManager {
   async createAccountAndSession(opts: {
     did: DidString
     handle: HandleString
+    role: Role
     email?: string
     password?: string
     repoCid: Cid
@@ -361,7 +386,7 @@ export class AccountManager {
 
     const handle = await this.normalizeAndValidateHandle(newHandle, {
       allowAnyValid: options?.allowAnyValid,
-      did,
+      role: account.role,
     })
 
     // Pessimistic check to handle spam: also enforced by updateAccountHandle() and the db.

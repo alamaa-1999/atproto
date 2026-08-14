@@ -23,6 +23,11 @@
               "description": "Pre-existing atproto DID, being imported to a new account."
             },
             "inviteCode": { "type": "string" },
+            "role": {
+              "type": "string",
+              "knownValues": ["striker", "catcher"],
+              "description": "Requested account role. Only honored on admin-authenticated requests; ignored (forced to 'catcher') otherwise."
+            },
             "verificationCode": { "type": "string" },
             "verificationPhone": { "type": "string" },
             "password": {

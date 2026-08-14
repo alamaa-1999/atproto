@@ -9,7 +9,7 @@ import {
 } from '@atproto/lex'
 import { isErrUniqueViolation, notSoftDeletedClause } from '../../db/index.js'
 import type { com } from '../../lexicons/index.js'
-import type { AccountDb, ActorEntry } from '../db/index.js'
+import type { AccountDb, ActorEntry, Role } from '../db/index.js'
 
 export class UserAlreadyExistsError extends Error {
   name = 'UserAlreadyExistsError'
@@ -55,6 +55,7 @@ export const selectAccountQB = (db: AccountDb, flags?: AvailabilityFlags) => {
     .select([
       'actor.did',
       'actor.handle',
+      'actor.role',
       'actor.createdAt',
       'actor.takedownRef',
       'actor.deactivatedAt',
@@ -120,10 +121,11 @@ export const registerActor = async (
   opts: {
     did: DidString
     handle: HandleString
+    role: Role
     deactivated?: boolean
   },
 ) => {
-  const { did, handle, deactivated } = opts
+  const { did, handle, role, deactivated } = opts
   const now = Date.now()
   const createdAt = new Date(now).toISOString()
   const [registered] = await db.executeWithRetry(
@@ -132,6 +134,7 @@ export const registerActor = async (
       .values({
         did,
         handle,
+        role,
         createdAt,
         deactivatedAt: deactivated ? createdAt : null,
         deleteAfter: deactivated ? new Date(now + 3 * DAY).toISOString() : null,

@@ -66,6 +66,10 @@
         {
           "name": "InvalidSwap",
           "description": "Indicates that 'swapCommit' didn't match current repo commit."
+        },
+        {
+          "name": "CatcherTopLevelPostNotAllowed",
+          "description": "Catcher-role accounts may only reply to existing threads, not create top-level posts."
         }
       ]
     }

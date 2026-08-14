@@ -41,6 +41,18 @@ export function SignUpView({
     links,
   } = useCustomizationData()
 
+  // Sign-up (this flow) always creates a Catcher account server-side — see
+  // the PDS's role enforcement — so only the "guest" domain should ever be
+  // offered as a choice here. Offering the primary domain too would let
+  // someone pick a handle the server immediately rejects, since Striker is
+  // never a self-signup outcome. Falls back to the full list if none match,
+  // so a deployment that doesn't follow this naming convention still works.
+  const guestDomains = availableUserDomains.filter((d) =>
+    d.startsWith('.guest'),
+  )
+  const signUpDomains =
+    guestDomains.length > 0 ? guestDomains : availableUserDomains
+
   // Keep a copy of all every step's form values in case the user changes a step
   // and goes back to the previous step, allowing to keep the un-submitted
   // values in the form inputs.
@@ -82,7 +94,7 @@ export function SignUpView({
             contentRender: ({ atLast, prev, prevLabel, next, nextLabel }) => (
               <SignUpHandleForm
                 className="grow"
-                domains={availableUserDomains}
+                domains={signUpDomains}
                 onBack={prev}
                 backLabel={prevLabel}
                 submitLabel={nextLabel}

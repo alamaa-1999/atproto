@@ -1398,8 +1398,8 @@ msgid "You can also temporarily deactivate your account instead. Your profile, p
 msgstr "Om du vill kan du <0>tillfälligt inaktivera</0> ditt konto istället. Det gör att din profil samt dina inlägg, flöden och listor slutar att synas för andra Bluesky-användare. Du kan återaktivera ditt konto när som helst genom att logga in."
 
 #: src/components/sign-up-handle-form.tsx
-msgid "You can change this username to any domain name you control after your account is set up."
-msgstr "Du kan ändra ditt användarnamn till ett domännamn du kontrollerar efter att ditt konto har skapats."
+msgid "You can change this username later."
+msgstr ""
 
 #: src/components/reactivate-account-dialog.tsx
 msgid "You can deactivate your account again at any time from this page."

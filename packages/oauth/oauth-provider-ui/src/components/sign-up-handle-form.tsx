@@ -61,10 +61,7 @@ export function SignUpHandleForm({
         later step, not something to act on now, and an alert surface next to
         the field it follows read as a warning about what was just typed. */}
       <p className="text-muted-foreground text-sm">
-        <Trans>
-          You can change this username to any domain name you control after your
-          account is set up.
-        </Trans>
+        <Trans>You can change this username later.</Trans>
       </p>
 
       {children}

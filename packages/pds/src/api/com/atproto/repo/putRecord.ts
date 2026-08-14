@@ -24,6 +24,7 @@ import {
   prepareCreate,
   prepareUpdate,
 } from '../../../../repo/index.js'
+import { assertCanWriteRecord } from './util.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(com.atproto.repo.putRecord, {
@@ -76,6 +77,8 @@ export default function (server: Server, ctx: AppContext) {
       if (did !== auth.credentials.did) {
         throw new AuthRequiredError()
       }
+
+      assertCanWriteRecord(account.role, collection, record)
 
       // We can't compute permissions based on the request payload ("input") in
       // the 'auth' phase, so we do it here.

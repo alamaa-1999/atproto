@@ -16,6 +16,7 @@ import {
   prepareDelete,
   prepareUpdate,
 } from '../../../../repo/index.js'
+import { assertCanWriteRecord } from './util.js'
 
 const ratelimitPoints = ({
   input,
@@ -127,6 +128,7 @@ export default function (server: Server, ctx: AppContext) {
         preparedWrites = await Promise.all(
           writes.map(async (write, i) => {
             if (com.atproto.repo.applyWrites.create.$isTypeOf(write)) {
+              assertCanWriteRecord(account.role, write.collection, write.value)
               return prepareCreate({
                 did,
                 collection: write.collection,
@@ -136,6 +138,7 @@ export default function (server: Server, ctx: AppContext) {
                 validationPath: ['writes', i, 'record'],
               })
             } else if (com.atproto.repo.applyWrites.update.$isTypeOf(write)) {
+              assertCanWriteRecord(account.role, write.collection, write.value)
               return prepareUpdate({
                 did,
                 collection: write.collection,

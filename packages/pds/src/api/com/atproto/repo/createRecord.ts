@@ -15,6 +15,7 @@ import {
   prepareCreate,
   prepareDelete,
 } from '../../../../repo/index.js'
+import { assertCanWriteRecord } from './util.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(com.atproto.repo.createRecord, {
@@ -60,6 +61,8 @@ export default function (server: Server, ctx: AppContext) {
       if (did !== auth.credentials.did) {
         throw new AuthRequiredError()
       }
+
+      assertCanWriteRecord(account.role, collection, record)
 
       if (auth.credentials.type === 'oauth') {
         auth.credentials.permissions.assertRepo({

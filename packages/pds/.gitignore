@@ -1,2 +1,4 @@
 # @atproto/lex
 src/lexicons
+.dev-data
+.dev.env

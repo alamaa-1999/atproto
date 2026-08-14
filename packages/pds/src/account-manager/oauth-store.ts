@@ -189,6 +189,9 @@ export class OAuthStore
           await this.accountManager.createAccount({
             did,
             handle,
+            // Self-service sign-up (this OAuth flow) can never grant Striker;
+            // that role is only ever assigned via admin-authenticated creation.
+            role: 'catcher',
             email,
             password,
             inviteCode,
@@ -427,8 +430,13 @@ export class OAuthStore
   async verifyHandleAvailability(handle: HandleString): Promise<void> {
     // @NOTE Handle validity & normalization already enforced by the OAuthProvider
     try {
-      const normalized =
-        await this.accountManager.normalizeAndValidateHandle(handle)
+      // Self-service sign-up (this OAuth flow) always creates Catcher
+      // accounts (see `createAccount` below) — the handle must match, or a
+      // Catcher could end up with a Striker-domain handle.
+      const normalized = await this.accountManager.normalizeAndValidateHandle(
+        handle,
+        { role: 'catcher' },
+      )
 
       // Should never happen (OAuthProvider should have already validated the
       // handle) This check is just a safeguard against future normalization

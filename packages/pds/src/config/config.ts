@@ -114,6 +114,20 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     throw new Error(`Invalid handle domain: ${invalidDomain}`)
   }
 
+  // Striker handles use the primary service domain; Catcher handles use a
+  // "guest." prefix on that same domain, so the distinction between the two
+  // roles is always visible directly in the handle (e.g. sunnahsky.com vs
+  // guest.sunnahsky.com), not just enforced invisibly server-side.
+  const strikerHandleDomain = serviceHandleDomains[0]
+  const catcherHandleDomain = `.guest${strikerHandleDomain}`
+  if (!serviceHandleDomains.includes(catcherHandleDomain)) {
+    // catcherHandleDomain must come before strikerHandleDomain: domain
+    // matching elsewhere (ensureHandleServiceConstraints) takes the first
+    // array match, and ".guest.sunnahsky.com" is itself a suffix of
+    // ".sunnahsky.com" — the more specific domain has to win.
+    serviceHandleDomains = [catcherHandleDomain, ...serviceHandleDomains]
+  }
+
   const identityCfg: ServerConfig['identity'] = {
     plcUrl: env.didPlcUrl ?? 'https://plc.directory',
     cacheMaxTTL: env.didCacheMaxTTL ?? DAY,
@@ -121,6 +135,8 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     resolverTimeout: env.resolverTimeout ?? 3 * SECOND,
     recoveryDidKey: env.recoveryDidKey ?? null,
     serviceHandleDomains,
+    strikerHandleDomain,
+    catcherHandleDomain,
     handleBackupNameservers: env.handleBackupNameservers,
     enableDidDocWithSession: !!env.enableDidDocWithSession,
   }
@@ -445,6 +461,8 @@ export type IdentityConfig = {
   cacheMaxTTL: number
   recoveryDidKey: string | null
   serviceHandleDomains: string[]
+  strikerHandleDomain: string
+  catcherHandleDomain: string
   handleBackupNameservers?: string[]
   enableDidDocWithSession: boolean
 }
