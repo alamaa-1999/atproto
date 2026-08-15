@@ -177,11 +177,10 @@ export class SeedClient<
     },
   ): Promise<Account> {
     const { role = 'striker', ...rest } = params
-    const { data: account } =
-      await this.agent.com.atproto.server.createAccount(
-        { ...rest, role },
-        { headers: this.network.pds.adminAuthHeaders() },
-      )
+    const { data: account } = await this.agent.com.atproto.server.createAccount(
+      { ...rest, role },
+      { headers: this.network.pds.adminAuthHeaders() },
+    )
     const did = account.did as DidString
     this.dids[shortName] = did
     this.accounts[account.did] = {
