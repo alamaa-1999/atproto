@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@atproto/lex": "workspace:^",
     "@atproto/pds": "workspace:^"
   }
 }
