@@ -9,7 +9,9 @@ import type { DidString } from '@atproto/syntax'
 import type { AppContext } from '../src/index.js'
 
 const email = 'alice@test.com'
-const handle = 'alice.test'
+// None of these tests request role: 'striker', so every account created
+// here defaults to 'catcher' and must use the .guest. handle domain.
+const handle = 'alice.guest.test'
 const password = 'test123'
 const passwordAlt = 'test456'
 const minsToMs = 60 * 1000
@@ -63,7 +65,11 @@ describe('account', () => {
   it('serves the accounts system config', async () => {
     const res = await agent.api.com.atproto.server.describeServer({})
     expect(res.data.inviteCodeRequired).toBe(false)
-    expect(res.data.availableUserDomains[0]).toBe('.test')
+    // The guest (Catcher) domain is listed first — deliberate, since
+    // ensureHandleServiceConstraints/isServiceDomain match via .find(),
+    // which returns the first suffix match. See the Week 1 engineering
+    // notes for the .find()-returns-first-match bug this ordering fixes.
+    expect(res.data.availableUserDomains[0]).toBe('.guest.test')
     expect(typeof res.data.inviteCodeRequired).toBe('boolean')
     expect(res.data.blobUploadLimit).toBe(123_456)
     expect(res.data.links?.privacyPolicy).toBe(
@@ -90,7 +96,7 @@ describe('account', () => {
     it('succeeds on allowed emails', async () => {
       const promise = agent.api.com.atproto.server.createAccount({
         email: 'ok-email@gmail.com',
-        handle: 'ok-email.test',
+        handle: 'ok-email.guest.test',
         password: 'asdf',
       })
       await expect(promise).resolves.toBeTruthy()
@@ -142,7 +148,7 @@ describe('account', () => {
     const recoveryKey = (await crypto.P256Keypair.create()).did()
     const res = await agent.api.com.atproto.server.createAccount({
       email: 'custom-recovery@test.com',
-      handle: 'custom-recovery.test',
+      handle: 'custom-recovery.guest.test',
       password: 'custom-recovery',
       recoveryKey,
     })
@@ -283,7 +289,7 @@ describe('account', () => {
 
   it('disallows duplicate email addresses and handles', async () => {
     const email = 'bob@test.com'
-    const handle = 'bob.test'
+    const handle = 'bob.guest.test'
     const password = 'test123'
     await agent.api.com.atproto.server.createAccount({
       email,
@@ -294,7 +300,7 @@ describe('account', () => {
     await expect(
       agent.api.com.atproto.server.createAccount({
         email: email.toUpperCase(),
-        handle: 'carol.test',
+        handle: 'carol.guest.test',
         password,
       }),
     ).rejects.toThrow('Email already taken: BOB@TEST.COM')
@@ -305,7 +311,7 @@ describe('account', () => {
         handle: handle.toUpperCase(),
         password,
       }),
-    ).rejects.toThrow('Handle already taken: bob.test')
+    ).rejects.toThrow('Handle already taken: bob.guest.test')
   })
 
   it('validates input through lexicon schema', async () => {
@@ -369,7 +375,7 @@ describe('account', () => {
         try {
           await agent.api.com.atproto.server.createAccount({
             email: `matching@test.com`,
-            handle: `matching.test`,
+            handle: `matching.guest.test`,
             password: `password`,
           })
           successes++
@@ -395,7 +401,7 @@ describe('account', () => {
     })
     jwt = res.data.accessJwt
     expect(typeof jwt).toBe('string')
-    expect(res.data.handle).toBe('alice.test')
+    expect(res.data.handle).toBe('alice.guest.test')
     expect(res.data.did).toBe(did)
     expect(res.data.email).toBe(email)
   })
@@ -418,7 +424,7 @@ describe('account', () => {
 
     const [params] = sendResetPasswordMock.mock.lastCall!
     expect(params).toEqual({
-      handle: 'alice.test',
+      handle: 'alice.guest.test',
       token: expect.any(String),
     })
 
@@ -426,7 +432,7 @@ describe('account', () => {
     expect(mail.to).toEqual(email)
     expect(mail.subject).toBe('Password Reset Requested')
     expect(mail.html).toContain('Reset password')
-    expect(mail.html).toContain('alice.test')
+    expect(mail.html).toContain('alice.guest.test')
 
     await agent.api.com.atproto.server.resetPassword({
       token: params.token,
@@ -551,6 +557,377 @@ describe('account', () => {
         password,
       }),
     ).resolves.toBeDefined()
+  })
+
+  describe('accountType', () => {
+    // Fresh, header-free agent: the shared `agent` above accumulates a
+    // stale authorization header from earlier tests in this suite (see
+    // 'can perform authenticated requests'), which trips the optional auth
+    // verifier on createAccount if reused here. None of these accounts
+    // request role: 'striker', so they default to 'catcher' and must use
+    // the .guest. handle domain, same as any other Catcher signup.
+    let freshAgent: AtpAgent
+
+    beforeAll(() => {
+      freshAgent = network.pds.getAgent()
+    })
+
+    it('defaults to person and ignores a non-admin accountType request', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'inst-attempt@test.com',
+        handle: 'inst-attempt.guest.test',
+        password: 'test123',
+        accountType: 'institution',
+      })
+
+      const accnt = await ctx.accountManager.getAccount(
+        'inst-attempt.guest.test',
+      )
+      expect(accnt?.accountType).toBe('person')
+    })
+
+    it('honors accountType on admin-authenticated createAccount', async () => {
+      await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'inst-admin@test.com',
+          handle: 'inst-admin.guest.test',
+          password: 'test123',
+          accountType: 'institution',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      const accnt = await ctx.accountManager.getAccount('inst-admin.guest.test')
+      expect(accnt?.accountType).toBe('institution')
+    })
+
+    it('defaults to person when accountType is not specified', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'plain-signup@test.com',
+        handle: 'plain-signup.guest.test',
+        password: 'test123',
+      })
+
+      const accnt = await ctx.accountManager.getAccount(
+        'plain-signup.guest.test',
+      )
+      expect(accnt?.accountType).toBe('person')
+    })
+
+    it('rejects unauthenticated updateAccountType requests', async () => {
+      const tryUnauthed = freshAgent.api.com.atproto.admin.updateAccountType({
+        account: 'plain-signup.guest.test',
+        accountType: 'institution',
+      })
+      await expect(tryUnauthed).rejects.toThrow('Authentication Required')
+
+      const accnt = await ctx.accountManager.getAccount(
+        'plain-signup.guest.test',
+      )
+      expect(accnt?.accountType).toBe('person')
+    })
+
+    it('allows an admin to promote an existing account to institution', async () => {
+      await freshAgent.api.com.atproto.admin.updateAccountType(
+        {
+          account: 'plain-signup.guest.test',
+          accountType: 'institution',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      const accnt = await ctx.accountManager.getAccount(
+        'plain-signup.guest.test',
+      )
+      expect(accnt?.accountType).toBe('institution')
+
+      // and back, confirming the route isn't a one-way promotion
+      await freshAgent.api.com.atproto.admin.updateAccountType(
+        {
+          account: 'plain-signup.guest.test',
+          accountType: 'person',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      const accntAfter = await ctx.accountManager.getAccount(
+        'plain-signup.guest.test',
+      )
+      expect(accntAfter?.accountType).toBe('person')
+    })
+
+    it('is idempotent when the admin re-requests the value an account already has', async () => {
+      await freshAgent.api.com.atproto.admin.updateAccountType(
+        {
+          account: 'inst-admin.guest.test',
+          accountType: 'institution',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      // already 'institution' from the earlier admin-authenticated
+      // createAccount test — re-requesting the same value should succeed
+      // as a no-op, not throw.
+      await expect(
+        freshAgent.api.com.atproto.admin.updateAccountType(
+          {
+            account: 'inst-admin.guest.test',
+            accountType: 'institution',
+          },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).resolves.toBeDefined()
+
+      const accnt = await ctx.accountManager.getAccount('inst-admin.guest.test')
+      expect(accnt?.accountType).toBe('institution')
+    })
+
+    it('still enforces handle uniqueness with accountType in the insert', async () => {
+      await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'handle-dupe@test.com',
+          handle: 'handle-dupe.guest.test',
+          password: 'test123',
+          accountType: 'institution',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      await expect(
+        freshAgent.api.com.atproto.server.createAccount({
+          email: 'handle-dupe-2@test.com',
+          handle: 'handle-dupe.guest.test',
+          password: 'test123',
+        }),
+      ).rejects.toThrow('Handle already taken: handle-dupe.guest.test')
+    })
+  })
+
+  describe('promoteToStriker', () => {
+    let freshAgent: AtpAgent
+
+    beforeAll(() => {
+      freshAgent = network.pds.getAgent()
+    })
+
+    it('promotes a real Catcher account: handle migrates and role flips', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'promote-me@test.com',
+        handle: 'promote-me.guest.test',
+        password: 'test123',
+      })
+
+      const res =
+        await freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+          { account: 'promote-me.guest.test' },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        )
+
+      expect(res.data.handle).toBe('promote-me.test')
+
+      const accnt = await ctx.accountManager.getAccount('promote-me.test')
+      expect(accnt?.role).toBe('striker')
+      expect(accnt?.handle).toBe('promote-me.test')
+    })
+
+    it('rejects promoting an account that is already a Striker', async () => {
+      await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'already-striker@test.com',
+          handle: 'already-striker.test',
+          password: 'test123',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      await expect(
+        freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+          { account: 'already-striker.test' },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).rejects.toThrow('Account is already a Striker')
+    })
+
+    it('rejects promoting a nonexistent account', async () => {
+      await expect(
+        freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+          { account: 'nonexistent-account.guest.test' },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).rejects.toThrow('Account does not exist')
+    })
+
+    it('rejects unauthenticated requests', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'unauthed-promote@test.com',
+        handle: 'unauthed-promote.guest.test',
+        password: 'test123',
+      })
+
+      await expect(
+        freshAgent.api.com.atproto.admin.promoteAccountToStriker({
+          account: 'unauthed-promote.guest.test',
+        }),
+      ).rejects.toThrow('Authentication Required')
+
+      const accnt = await ctx.accountManager.getAccount(
+        'unauthed-promote.guest.test',
+      )
+      expect(accnt?.role).toBe('catcher')
+    })
+
+    it('is idempotent when the handle already migrated but the role flip did not complete', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'partial-promote@test.com',
+        handle: 'partial-promote.guest.test',
+        password: 'test123',
+      })
+      const created = await ctx.accountManager.getAccount(
+        'partial-promote.guest.test',
+      )
+      if (!created) throw new Error('Account not found')
+
+      // Simulate a promoteToStriker() call that migrated the handle via PLC
+      // + updateAccountHandle but crashed before the role flip — write the
+      // target handle directly, leave role untouched.
+      await ctx.accountManager.db.db
+        .updateTable('actor')
+        .set({ handle: 'partial-promote.test' })
+        .where('did', '=', created.did)
+        .execute()
+
+      const promoted =
+        await freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+          { account: created.did },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        )
+
+      expect(promoted.data.handle).toBe('partial-promote.test')
+      const accnt = await ctx.accountManager.getAccount('partial-promote.test')
+      expect(accnt?.role).toBe('striker')
+    })
+
+    it('rejects when the derived Striker handle is already taken by a different account', async () => {
+      // An unrelated account already sits at the bare-domain handle a
+      // Catcher named "collide-name" would derive to.
+      await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'collide-owner@test.com',
+          handle: 'collide-name.test',
+          password: 'test123',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      const catcher = await freshAgent.api.com.atproto.server.createAccount({
+        email: 'collide-catcher@test.com',
+        handle: 'collide-name.guest.test',
+        password: 'test123',
+      })
+
+      await expect(
+        freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+          { account: catcher.data.did },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).rejects.toThrow('already in use by a different account')
+
+      const catcherAccnt = await ctx.accountManager.getAccount(
+        'collide-name.guest.test',
+      )
+      expect(catcherAccnt?.role).toBe('catcher')
+      const strikerAccnt =
+        await ctx.accountManager.getAccount('collide-name.test')
+      expect(strikerAccnt?.handle).toBe('collide-name.test')
+    })
+
+    it('a promoted account can create a top-level post afterward, where it was previously rejected', async () => {
+      const created = await freshAgent.api.com.atproto.server.createAccount({
+        email: 'writer@test.com',
+        handle: 'writer.guest.test',
+        password: 'test123',
+      })
+
+      const session = await freshAgent.api.com.atproto.server.createSession({
+        identifier: 'writer.guest.test',
+        password: 'test123',
+      })
+
+      const postAgent = network.pds.getAgent()
+      postAgent.api.setHeader(
+        'authorization',
+        `Bearer ${session.data.accessJwt}`,
+      )
+
+      // Before promotion: rejected as a Catcher top-level post.
+      await expect(
+        postAgent.api.com.atproto.repo.createRecord({
+          repo: created.data.did,
+          collection: 'app.bsky.feed.post',
+          record: { text: 'hello', createdAt: new Date().toISOString() },
+        }),
+      ).rejects.toThrow(
+        'Catchers can only reply to existing threads, not create or edit top-level posts.',
+      )
+
+      await freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+        { account: created.data.did },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      // After promotion: the same account, same session, can now post.
+      await expect(
+        postAgent.api.com.atproto.repo.createRecord({
+          repo: created.data.did,
+          collection: 'app.bsky.feed.post',
+          record: { text: 'hello', createdAt: new Date().toISOString() },
+        }),
+      ).resolves.toBeDefined()
+    })
   })
 
   it('allows an admin to update password', async () => {

@@ -28,7 +28,7 @@ export type DatabaseSchema = actor.PartialDB &
   lexicon.PartialDB &
   emailToken.PartialDB
 
-export type { Actor, ActorEntry, Role } from './actor.js'
+export type { AccountType, Actor, ActorEntry, Role } from './actor.js'
 export type { Account, AccountEntry } from './account.js'
 export type { AccountDevice } from './account-device.js'
 export type { Device } from './device.js'

@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.admin.promoteAccountToStriker",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Administrative action to promote an existing Catcher account to Striker. Migrates the account's handle from the Catcher (guest) domain to the Striker domain, then updates its role. Both steps are handled together; there is no separate route to change role alone.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["account"],
+          "properties": {
+            "account": {
+              "type": "string",
+              "format": "at-identifier",
+              "description": "The handle or DID of the Catcher account to promote."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did", "handle"],
+          "properties": {
+            "did": { "type": "string", "format": "did" },
+            "handle": { "type": "string", "format": "handle" }
+          }
+        }
+      }
+    }
+  }
+}

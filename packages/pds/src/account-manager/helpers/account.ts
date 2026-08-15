@@ -9,7 +9,7 @@ import {
 } from '@atproto/lex'
 import { isErrUniqueViolation, notSoftDeletedClause } from '../../db/index.js'
 import type { com } from '../../lexicons/index.js'
-import type { AccountDb, ActorEntry, Role } from '../db/index.js'
+import type { AccountDb, AccountType, ActorEntry, Role } from '../db/index.js'
 
 export class UserAlreadyExistsError extends Error {
   name = 'UserAlreadyExistsError'
@@ -56,6 +56,7 @@ export const selectAccountQB = (db: AccountDb, flags?: AvailabilityFlags) => {
       'actor.did',
       'actor.handle',
       'actor.role',
+      'actor.accountType',
       'actor.createdAt',
       'actor.takedownRef',
       'actor.deactivatedAt',
@@ -122,10 +123,11 @@ export const registerActor = async (
     did: DidString
     handle: HandleString
     role: Role
+    accountType?: AccountType
     deactivated?: boolean
   },
 ) => {
-  const { did, handle, role, deactivated } = opts
+  const { did, handle, role, accountType, deactivated } = opts
   const now = Date.now()
   const createdAt = new Date(now).toISOString()
   const [registered] = await db.executeWithRetry(
@@ -135,6 +137,7 @@ export const registerActor = async (
         did,
         handle,
         role,
+        accountType: accountType ?? 'person',
         createdAt,
         deactivatedAt: deactivated ? createdAt : null,
         deleteAfter: deactivated ? new Date(now + 3 * DAY).toISOString() : null,
@@ -224,6 +227,26 @@ export const updateHandle = async (
       'Handle is already in use, please choose a different handle.',
     )
   }
+}
+
+export const updateAccountType = async (
+  db: AccountDb,
+  did: DidString,
+  accountType: AccountType,
+) => {
+  await db.executeWithRetry(
+    db.db.updateTable('actor').set({ accountType }).where('did', '=', did),
+  )
+}
+
+// Deliberately not exported from AccountManager — the only caller is
+// promoteToStriker(), after the handle has already migrated. This is the
+// one place `role` can be written post-creation; no standalone "set role"
+// route exists on purpose.
+export const setRole = async (db: AccountDb, did: DidString, role: Role) => {
+  await db.executeWithRetry(
+    db.db.updateTable('actor').set({ role }).where('did', '=', did),
+  )
 }
 
 export const updateEmail = async (

@@ -8,10 +8,12 @@ import getAccountInfo from './getAccountInfo.js'
 import getAccountInfos from './getAccountInfos.js'
 import getInviteCodes from './getInviteCodes.js'
 import getSubjectStatus from './getSubjectStatus.js'
+import promoteAccountToStriker from './promoteAccountToStriker.js'
 import sendEmail from './sendEmail.js'
 import updateAccountEmail from './updateAccountEmail.js'
 import updateAccountHandle from './updateAccountHandle.js'
 import updateAccountPassword from './updateAccountPassword.js'
+import updateAccountType from './updateAccountType.js'
 import updateSubjectStatus from './updateSubjectStatus.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -25,6 +27,8 @@ export default function (server: Server, ctx: AppContext) {
   getInviteCodes(server, ctx)
   updateAccountHandle(server, ctx)
   updateAccountEmail(server, ctx)
+  updateAccountType(server, ctx)
+  promoteAccountToStriker(server, ctx)
   updateAccountPassword(server, ctx)
   sendEmail(server, ctx)
   deleteAccount(server, ctx)

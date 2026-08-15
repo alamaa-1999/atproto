@@ -28,6 +28,11 @@
               "knownValues": ["striker", "catcher"],
               "description": "Requested account role. Only honored on admin-authenticated requests; ignored (forced to 'catcher') otherwise."
             },
+            "accountType": {
+              "type": "string",
+              "knownValues": ["person", "institution"],
+              "description": "Requested account type. Only honored on admin-authenticated requests; ignored (forced to 'person') otherwise."
+            },
             "verificationCode": { "type": "string" },
             "verificationPhone": { "type": "string" },
             "password": {

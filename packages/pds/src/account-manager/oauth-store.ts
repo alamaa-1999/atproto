@@ -192,6 +192,9 @@ export class OAuthStore
             // Self-service sign-up (this OAuth flow) can never grant Striker;
             // that role is only ever assigned via admin-authenticated creation.
             role: 'catcher',
+            // Same reasoning as role above: self-service sign-up can never
+            // grant Institution status.
+            accountType: 'person',
             email,
             password,
             inviteCode,

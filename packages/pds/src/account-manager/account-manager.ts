@@ -36,6 +36,7 @@ import type { ServerMailer } from '../mailer/index.js'
 import type { Sequencer } from '../sequencer/index.js'
 import {
   type AccountDb,
+  type AccountType,
   type EmailTokenPurpose,
   type Role,
   getDb,
@@ -222,7 +223,8 @@ export class AccountManager {
   private ensureHandleMatchesRole(handle: string, role: Role): void {
     const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
     const isCatcherHandle = handle.endsWith(catcherHandleDomain)
-    const isStrikerHandle = !isCatcherHandle && handle.endsWith(strikerHandleDomain)
+    const isStrikerHandle =
+      !isCatcherHandle && handle.endsWith(strikerHandleDomain)
 
     if (role === 'catcher' && !isCatcherHandle) {
       throw new InvalidRequestError(
@@ -242,6 +244,7 @@ export class AccountManager {
     did,
     handle,
     role,
+    accountType,
     email,
     password,
     repoCid,
@@ -253,6 +256,7 @@ export class AccountManager {
     did: DidString
     handle: HandleString
     role: Role
+    accountType?: AccountType
     email?: string
     password?: string
     repoCid: Cid
@@ -278,6 +282,7 @@ export class AccountManager {
         did,
         handle,
         role,
+        accountType,
         deactivated,
       })
 
@@ -311,6 +316,7 @@ export class AccountManager {
     did: DidString
     handle: HandleString
     role: Role
+    accountType?: AccountType
     email?: string
     password?: string
     repoCid: Cid
@@ -420,6 +426,90 @@ export class AccountManager {
     } catch (err) {
       httpLogger.error({ err, did, handle }, 'failed to sequence handle update')
     }
+  }
+
+  /**
+   * Promotes an existing Catcher to Striker. Handle migrates first, then role
+   * flips — never the reverse (see `role upgrade plan.md` for why the
+   * ordering matters). The only public entry point that can change `role`
+   * post-creation; there is deliberately no standalone "set role" method, so
+   * this coupling can't be bypassed by a future call site.
+   */
+  async promoteToStriker(
+    did: DidString,
+  ): Promise<ActorAccount & { handle: HandleString }> {
+    const account = await this.getAccount(did, { includeDeactivated: true })
+    if (!account) {
+      throw new InvalidRequestError('Account not found')
+    }
+    if (account.role === 'striker') {
+      throw new InvalidRequestError('Account is already a Striker')
+    }
+
+    const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
+
+    // catcherHandleDomain ('.guest.test') itself ends with strikerHandleDomain
+    // ('.test') — same suffix-overlap this fork already guards against in
+    // ensureHandleMatchesRole(). Check the Catcher suffix first so an
+    // untouched Catcher handle never false-positives as "already migrated".
+    const isCatcherHandle = account.handle?.endsWith(catcherHandleDomain)
+    const isAlreadyStrikerHandle =
+      !isCatcherHandle && account.handle?.endsWith(strikerHandleDomain)
+
+    // Idempotent: if a prior attempt already migrated the handle but failed
+    // before the role flip, don't try to re-derive/re-migrate — just proceed
+    // to the role flip below.
+    let handle: HandleString
+    if (isAlreadyStrikerHandle) {
+      handle = account.handle as HandleString
+    } else {
+      if (!isCatcherHandle || !account.handle) {
+        // Defensive: should be unreachable given `ensureHandleMatchesRole` is
+        // enforced everywhere a Catcher's handle can be set, but don't derive
+        // a nonsense handle from an assumption that's suddenly false.
+        throw new InvalidRequestError(
+          `Account's current handle (${account.handle}) does not match the expected Catcher domain (${catcherHandleDomain}) — refusing to guess a new handle`,
+        )
+      }
+      const name = account.handle.slice(0, -catcherHandleDomain.length)
+      const newHandle = `${name}${strikerHandleDomain}` as HandleString
+
+      this.ensureHandleMatchesRole(newHandle, 'striker')
+
+      // Same collision check validateHandleUpdate does before any real handle
+      // change — the derived handle is deterministic, but not guaranteed
+      // unclaimed (an unrelated account could already hold it).
+      const existing = await this.getAccount(newHandle, {
+        includeDeactivated: true,
+        includeTakenDown: true,
+      })
+      if (existing) {
+        throw new InvalidRequestError(
+          `Derived handle ${newHandle} is already in use by a different account`,
+        )
+      }
+
+      if (did.startsWith('did:plc:')) {
+        await this.plcClient.updateHandle(did, this.plcRotationKey, newHandle)
+      } else {
+        const resolved = await this.idResolver.did.resolveAtprotoData(did, true)
+        if (resolved.handle !== newHandle) {
+          throw new InvalidRequestError(
+            'DID is not properly configured for handle',
+          )
+        }
+      }
+
+      // @NOTE Same caveat as updateHandle(): if the next line fails, we don't
+      // roll back the PLC update above. Calling promoteToStriker() again is
+      // safe — see the idempotency branch above.
+      await this.updateAccountHandle(did, newHandle)
+      handle = newHandle
+    }
+
+    await accountHelpers.setRole(this.db, did, 'striker')
+
+    return { ...account, role: 'striker', handle }
   }
 
   async deleteAccount(did: DidString) {
@@ -920,6 +1010,10 @@ export class AccountManager {
       await accountHelpers.updateEmail(dbTxn, did, email)
       await emailToken.deleteAllEmailTokens(dbTxn, did)
     })
+  }
+
+  async updateAccountType(did: DidString, accountType: AccountType) {
+    await accountHelpers.updateAccountType(this.db, did, accountType)
   }
 
   async resetPassword(opts: { password: string; token: string }) {

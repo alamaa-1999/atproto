@@ -47,7 +47,17 @@ export default function (server: Server, ctx: AppContext) {
       // request it. Every other caller is forced to Catcher, regardless of
       // what "role" they send.
       const isAdmin = auth.credentials?.type === 'admin_token'
-      const role = isAdmin && input.body.role === 'striker' ? 'striker' : 'catcher'
+      const role =
+        isAdmin && input.body.role === 'striker' ? 'striker' : 'catcher'
+
+      // Institution is a manually-granted, vetted status: only an
+      // admin-authenticated caller (goat/curl with PDS_ADMIN_PASSWORD) can
+      // request it. Every other caller is forced to Person, regardless of
+      // what "accountType" they send.
+      const accountType =
+        isAdmin && input.body.accountType === 'institution'
+          ? 'institution'
+          : 'person'
 
       const {
         did,
@@ -87,6 +97,7 @@ export default function (server: Server, ctx: AppContext) {
             did,
             handle,
             role,
+            accountType,
             email,
             password,
             repoCid: commit.cid,
