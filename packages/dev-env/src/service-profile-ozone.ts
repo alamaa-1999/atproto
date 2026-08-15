@@ -13,7 +13,7 @@ export class OzoneServiceProfile extends ServiceProfile {
     ozoneUrl: string,
     userDetails = {
       email: 'mod-authority@test.com',
-      handle: 'mod-authority.test',
+      handle: 'mod-authority.guest.test',
       password: 'hunter2',
     },
   ) {

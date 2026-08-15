@@ -652,12 +652,12 @@ describe('indexing', () => {
         data: { did },
       } = await sessionAgent.createAccount({
         email: 'did1@test.com',
-        handle: 'did1.test',
+        handle: 'did1.guest.test',
         password: 'password',
       })
       await expect(getIndexedHandle(did)).rejects.toThrow('Profile not found')
       await network.bsky.sub.indexingSvc.indexHandle(did, now)
-      await expect(getIndexedHandle(did)).resolves.toEqual('did1.test')
+      await expect(getIndexedHandle(did)).resolves.toEqual('did1.guest.test')
     })
 
     it('reindexes handle for existing did when forced', async () => {
@@ -667,18 +667,20 @@ describe('indexing', () => {
         data: { did },
       } = await sessionAgent.createAccount({
         email: 'did2@test.com',
-        handle: 'did2.test',
+        handle: 'did2.guest.test',
         password: 'password',
       })
       await network.bsky.sub.indexingSvc.indexHandle(did, now)
-      await expect(getIndexedHandle(did)).resolves.toEqual('did2.test')
+      await expect(getIndexedHandle(did)).resolves.toEqual('did2.guest.test')
       await sessionAgent.com.atproto.identity.updateHandle({
-        handle: 'did2-updated.test',
+        handle: 'did2-updated.guest.test',
       })
       await network.bsky.sub.indexingSvc.indexHandle(did, now)
-      await expect(getIndexedHandle(did)).resolves.toEqual('did2.test') // Didn't update, not forced
+      await expect(getIndexedHandle(did)).resolves.toEqual('did2.guest.test') // Didn't update, not forced
       await network.bsky.sub.indexingSvc.indexHandle(did, now, true)
-      await expect(getIndexedHandle(did)).resolves.toEqual('did2-updated.test')
+      await expect(getIndexedHandle(did)).resolves.toEqual(
+        'did2-updated.guest.test',
+      )
     })
 
     it('handles profile aggregations out of order', async () => {
@@ -686,7 +688,7 @@ describe('indexing', () => {
       const agent = network.pds.getAgent()
       await agent.createAccount({
         email: 'did3@test.com',
-        handle: 'did3.test',
+        handle: 'did3.guest.test',
         password: 'password',
       })
       const did = agent.accountDid

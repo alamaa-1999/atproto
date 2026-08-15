@@ -461,7 +461,7 @@ exports[`proxies view requests actor.searchActor 1`] = `
     "description": "the repo containing all the lexicons that can be resolved in dev",
     "did": "user(6)",
     "displayName": "Lexicon Authority",
-    "handle": "lex-authority.test",
+    "handle": "lex-authority.guest.test",
     "indexedAt": "1970-01-01T00:00:00.000Z",
     "labels": [],
     "viewer": {
@@ -481,7 +481,7 @@ exports[`proxies view requests actor.searchActor 1`] = `
     "description": "The pretend version of mod.bsky.app",
     "did": "user(7)",
     "displayName": "Dev-env Moderation",
-    "handle": "mod-authority.test",
+    "handle": "mod-authority.guest.test",
     "indexedAt": "1970-01-01T00:00:00.000Z",
     "labels": [],
     "viewer": {
@@ -601,7 +601,7 @@ exports[`proxies view requests actor.searchActorTypeahead 1`] = `
     },
     "did": "user(6)",
     "displayName": "Lexicon Authority",
-    "handle": "lex-authority.test",
+    "handle": "lex-authority.guest.test",
     "labels": [],
     "viewer": {
       "blockedBy": false,
@@ -619,7 +619,7 @@ exports[`proxies view requests actor.searchActorTypeahead 1`] = `
     },
     "did": "user(7)",
     "displayName": "Dev-env Moderation",
-    "handle": "mod-authority.test",
+    "handle": "mod-authority.guest.test",
     "labels": [],
     "viewer": {
       "blockedBy": false,

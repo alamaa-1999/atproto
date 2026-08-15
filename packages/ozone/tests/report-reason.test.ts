@@ -28,7 +28,7 @@ describe('report reason', () => {
     // Login with ozone's service account owner and update the service profile definition
     pdsAgent = network.pds.getAgent()
     await pdsAgent.login({
-      identifier: 'mod-authority.test',
+      identifier: 'mod-authority.guest.test',
       password: 'hunter2',
     })
     await pdsAgent.com.atproto.repo.putRecord({

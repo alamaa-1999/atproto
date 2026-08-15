@@ -73,7 +73,7 @@ export class LexiconAuthorityProfile extends ServiceProfile {
     pds: TestPds,
     userDetails = {
       email: 'lex-authority@test.com',
-      handle: 'lex-authority.test',
+      handle: 'lex-authority.guest.test',
       password: 'hunter2',
     },
   ) {

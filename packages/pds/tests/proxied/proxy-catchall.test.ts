@@ -90,7 +90,7 @@ describe('proxy header', () => {
 
     await alice.createAccount({
       email: 'alice@test.com',
-      handle: 'alice.test',
+      handle: 'alice.guest.test',
       password: 'alice-pass',
     })
     await network.processAll()

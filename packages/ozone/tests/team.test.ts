@@ -109,7 +109,7 @@ describe('team management', () => {
       expect(matchingHandle.members[0]?.profile?.handle).toEqual('bob.test')
       expect(matchingName.members.length).toEqual(1)
       expect(matchingName.members[0]?.profile?.handle).toEqual(
-        'mod-authority.test',
+        'mod-authority.guest.test',
       )
     })
   })

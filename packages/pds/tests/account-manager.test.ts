@@ -63,7 +63,7 @@ describe('account manager', () => {
 
     await page.waitForNetworkIdle()
 
-    await page.ensureTextVisibility('bob.test', 'span')
+    await page.ensureTextVisibility('bob.guest.test', 'span')
     await page.ensureTextVisibility('Votre compte Atmosphère est hébergé chez')
 
     await page.assertTitle('Mon compte Atmosphère')
@@ -91,7 +91,7 @@ describe('account manager', () => {
     await page.clickOnText('Sélectionner un autre compte')
 
     await page.ensureTextVisibility('alice.test', 'span')
-    await page.ensureTextVisibility('bob.test', 'span')
+    await page.ensureTextVisibility('bob.guest.test', 'span')
   })
 
   it('forgot about the ephemeral session when loading the page again', async () => {
@@ -101,7 +101,7 @@ describe('account manager', () => {
 
     await page.assertTitle('Mon compte Atmosphère')
 
-    await page.ensureTextVisibility('bob.test', 'span')
+    await page.ensureTextVisibility('bob.guest.test', 'span')
 
     await expect(async () => {
       await page.ensureTextVisibility('alice.test', 'span', 500)
@@ -133,7 +133,7 @@ describe('account manager', () => {
 
     const [params] = sendResetPasswordMock.mock.lastCall!
     expect(params).toEqual({
-      handle: 'bob.test',
+      handle: 'bob.guest.test',
       locale: 'fr',
       token: expect.any(String),
     })
@@ -202,7 +202,7 @@ describe('account manager', () => {
 
     await page.waitForNetworkIdle()
 
-    await page.ensureTextVisibility('bob-renamed.test', 'span')
+    await page.ensureTextVisibility('bob-renamed.guest.test', 'span')
   })
 
   it('allows changing the email address', async () => {
@@ -266,7 +266,7 @@ describe('account manager', () => {
 
     input.press('Enter')
 
-    await page.ensureTextVisibility('bob-renamed.test', 'span')
+    await page.ensureTextVisibility('bob-renamed.guest.test', 'span')
   })
 
   it('does not ask for a token when changing a non-verified email', async () => {
@@ -331,7 +331,7 @@ describe('account manager', () => {
 
     // Username should not have changed
     await page.clickOnText('Retour')
-    await page.ensureTextVisibility('bob-renamed.test', 'span')
+    await page.ensureTextVisibility('bob-renamed.guest.test', 'span')
   })
 
   it('rejects custom domain when not configured', async () => {
@@ -372,14 +372,17 @@ describe('account manager', () => {
 
     await page.waitForNetworkIdle()
 
-    // Should display appropriate error message
+    // Should display appropriate error message. Previously asserted DNS
+    // resolution failure ("Le nom d'utilisateur n'a pas pu être résolu");
+    // this fork blocks every custom domain outright now, so the UI surfaces
+    // a more direct message instead, confirmed live against the running UI.
     await page.ensureTextVisibility(
-      "Le nom d'utilisateur n'a pas pu être résolu",
+      'Les domaines personnalisés ne sont pas pris en charge',
     )
 
     // Username should not have changed
     await page.clickOnText('Retour')
-    await page.ensureTextVisibility('bob-renamed.test', 'span')
+    await page.ensureTextVisibility('bob-renamed.guest.test', 'span')
   })
 
   it('allows deactivating & reactivating the account', async () => {

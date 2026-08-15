@@ -32,7 +32,7 @@ exports[`appeal account takedown actor takedown allows appeal request. 1`] = `
     "did": "user(1)",
   },
   "subjectBlobCids": [],
-  "subjectRepoHandle": "jeff.test",
+  "subjectRepoHandle": "jeff.guest.test",
   "tags": [
     "lang:und",
     "report:appeal",

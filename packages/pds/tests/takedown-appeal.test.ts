@@ -31,7 +31,7 @@ describe('appeal account takedown', () => {
 
   it('actor takedown allows appeal request.', async () => {
     const { data: account } = await agent.com.atproto.server.createAccount({
-      handle: 'jeff.test',
+      handle: 'jeff.guest.test',
       email: 'jeff@test.com',
       password: 'password',
     })
@@ -66,13 +66,13 @@ describe('appeal account takedown', () => {
     // Verify user can not get session token without setting the optional param
     await expect(
       agent.com.atproto.server.createSession({
-        identifier: 'jeff.test',
+        identifier: 'jeff.guest.test',
         password: 'password',
       }),
     ).rejects.toThrow('Account has been taken down')
 
     const { data: auth } = await agent.com.atproto.server.createSession({
-      identifier: 'jeff.test',
+      identifier: 'jeff.guest.test',
       password: 'password',
       allowTakendown: true,
     })
@@ -107,7 +107,7 @@ describe('appeal account takedown', () => {
 
   it('takendown actor is not allowed to create reports.', async () => {
     const { data: auth } = await agent.com.atproto.server.createSession({
-      identifier: 'jeff.test',
+      identifier: 'jeff.guest.test',
       password: 'password',
       allowTakendown: true,
     })
@@ -137,7 +137,7 @@ describe('appeal account takedown', () => {
 
   it('takendown actor is not allowed to create records.', async () => {
     const { data: auth } = await agent.com.atproto.server.createSession({
-      identifier: 'jeff.test',
+      identifier: 'jeff.guest.test',
       password: 'password',
       allowTakendown: true,
     })

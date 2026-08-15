@@ -132,10 +132,14 @@ describe('handles', () => {
     expect(data.handle).toBe(newHandle)
   })
 
-  it('disallows handles that do not resolve to a DID', async () => {
-    await expect(tryHandle('john.bsky.io')).rejects.toThrow(
-      'External handle did not resolve to DID',
-    )
+  it('disallows handles on unsupported domains', async () => {
+    // Upstream expects this to fail DNS/well-known resolution; this fork
+    // blocks every domain outside its own service list outright
+    // (isServiceDomain), before any resolution is ever attempted.
+    await expect(tryHandle('john.bsky.io')).rejects.toMatchObject({
+      error: 'UnsupportedDomain',
+      message: 'Not a supported handle domain',
+    })
   })
 
   it('validates input through lexicon schema', async () => {
@@ -181,43 +185,26 @@ describe('handles', () => {
     })
   })
 
-  it('allows updating to a dns handles', async () => {
-    await agent.api.com.atproto.identity.updateHandle(
+  it('disallows updating to an external (.external) domain', async () => {
+    // Previously two tests distinguishing a valid-vs-invalid DNS TXT record
+    // for .external handles (jest.unstable_mockModule above). Neither case
+    // reaches DNS resolution anymore — isServiceDomain rejects every
+    // .external handle outright, valid record or not — so the
+    // valid/invalid distinction no longer exists to test. Collapsed into
+    // one assertion that any .external handle is rejected the same way.
+    const attempt = agent.api.com.atproto.identity.updateHandle(
       {
         handle: 'alice.external',
       },
       { headers: sc.getHeaders(alice), encoding: 'application/json' },
     )
-    const dbHandle = await getHandleFromDb(alice)
-    expect(dbHandle).toBe('alice.external')
-
-    const data = await idResolver.did.resolveAtprotoData(alice)
-    expect(data.handle).toBe('alice.external')
-  })
-
-  it('does not allow updating to an invalid dns handle', async () => {
-    const attempt = agent.api.com.atproto.identity.updateHandle(
-      {
-        handle: 'bob.external',
-      },
-      { headers: sc.getHeaders(alice), encoding: 'application/json' },
-    )
-    await expect(attempt).rejects.toThrow(
-      'External handle did not resolve to DID',
-    )
-
-    const attempt2 = agent.api.com.atproto.identity.updateHandle(
-      {
-        handle: 'noexist.external',
-      },
-      { headers: sc.getHeaders(alice), encoding: 'application/json' },
-    )
-    await expect(attempt2).rejects.toThrow(
-      'External handle did not resolve to DID',
-    )
+    await expect(attempt).rejects.toMatchObject({
+      error: 'UnsupportedDomain',
+      message: 'Not a supported handle domain',
+    })
 
     const dbHandle = await getHandleFromDb(alice)
-    expect(dbHandle).toBe('alice.external')
+    expect(dbHandle).toBe(newHandle)
   })
 
   it('allows admin overrules of service domains', async () => {
