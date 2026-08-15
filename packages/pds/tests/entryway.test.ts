@@ -92,25 +92,26 @@ describe('entryway', () => {
 
   it('updates handle from pds.', async () => {
     await pdsAgent.api.com.atproto.identity.updateHandle(
-      { handle: 'alice2.test' },
+      { handle: 'alice2.guest.test' },
       {
         headers: SeedClient.getHeaders(accessToken),
         encoding: 'application/json',
       },
     )
     const doc = await pds.ctx.idResolver.did.resolve(alice)
-    const handleToDid = await pds.ctx.idResolver.handle.resolve('alice2.test')
+    const handleToDid =
+      await pds.ctx.idResolver.handle.resolve('alice2.guest.test')
     const accountFromPds = await pds.ctx.accountManager.getAccount(alice)
     const accountFromEntryway = entryway.getAccount(alice)
-    expect(doc?.alsoKnownAs).toEqual(['at://alice2.test'])
+    expect(doc?.alsoKnownAs).toEqual(['at://alice2.guest.test'])
     expect(handleToDid).toEqual(alice)
-    expect(accountFromPds?.handle).toEqual('alice2.test')
-    expect(accountFromEntryway?.handle).toEqual('alice2.test')
+    expect(accountFromPds?.handle).toEqual('alice2.guest.test')
+    expect(accountFromEntryway?.handle).toEqual('alice2.guest.test')
   })
 
   it('updates handle from entryway.', async () => {
     await entrywayAgent.api.com.atproto.identity.updateHandle(
-      { handle: 'alice3.test' },
+      { handle: 'alice3.guest.test' },
       await pds.ctx.serviceAuthHeaders(
         alice,
         'did:example:entryway',
@@ -118,18 +119,19 @@ describe('entryway', () => {
       ),
     )
     const doc = await entryway.idResolver.did.resolve(alice)
-    const handleToDid = await entryway.idResolver.handle.resolve('alice3.test')
+    const handleToDid =
+      await entryway.idResolver.handle.resolve('alice3.guest.test')
     const accountFromPds = await pds.ctx.accountManager.getAccount(alice)
     const accountFromEntryway = entryway.getAccount(alice)
-    expect(doc?.alsoKnownAs).toEqual(['at://alice3.test'])
+    expect(doc?.alsoKnownAs).toEqual(['at://alice3.guest.test'])
     expect(handleToDid).toEqual(alice)
-    expect(accountFromPds?.handle).toEqual('alice3.test')
-    expect(accountFromEntryway?.handle).toEqual('alice3.test')
+    expect(accountFromPds?.handle).toEqual('alice3.guest.test')
+    expect(accountFromEntryway?.handle).toEqual('alice3.guest.test')
   })
 
   it('resolves handle of local account via entryway.', async () => {
     const res = await pdsAgent.api.com.atproto.identity.resolveHandle({
-      handle: 'alice3.test',
+      handle: 'alice3.guest.test',
     })
     expect(res.data.did).toEqual(alice)
   })
@@ -148,7 +150,7 @@ describe('entryway', () => {
     } finally {
       await pds.ctx.accountManager.updateAccountHandle(
         alice,
-        'alice3.test' as HandleString,
+        'alice3.guest.test' as HandleString,
       )
     }
   })
@@ -173,14 +175,14 @@ describe('entryway', () => {
 
   it('defers handle resolution over well-known to entryway.', async () => {
     const resPds = await request(new URL('/.well-known/atproto-did', pds.url), {
-      headers: { host: 'alice3.test' },
+      headers: { host: 'alice3.guest.test' },
     })
     expect(resPds.statusCode).toEqual(404)
     await resPds.body.dump()
 
     const resEntryway = await request(
       new URL('/.well-known/atproto-did', entryway.url),
-      { headers: { host: 'alice3.test' } },
+      { headers: { host: 'alice3.guest.test' } },
     )
     expect(resEntryway.statusCode).toEqual(200)
     await expect(resEntryway.body.text()).resolves.toEqual(alice)

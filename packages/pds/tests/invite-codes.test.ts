@@ -331,7 +331,7 @@ const createAccountWithInvite = async (agent: AtpAgent, code: string) => {
   const name = crypto.randomStr(5, 'base32')
   const res = await agent.api.com.atproto.server.createAccount({
     email: `${name}@test.com`,
-    handle: `${name}.test`,
+    handle: `${name}.guest.test`,
     password: name,
     inviteCode: code,
   })

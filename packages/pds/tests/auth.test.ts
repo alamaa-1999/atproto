@@ -51,7 +51,7 @@ describe('auth', () => {
   it('provides valid access and refresh token on account creation.', async () => {
     const email = 'alice@test.com'
     const account = await createAccount({
-      handle: 'alice.test',
+      handle: 'alice.guest.test',
       email,
       password: 'password',
     })
@@ -77,12 +77,12 @@ describe('auth', () => {
   it('provides valid access and refresh token on session creation.', async () => {
     const email = 'bob@test.com'
     await createAccount({
-      handle: 'bob.test',
+      handle: 'bob.guest.test',
       email,
       password: 'password',
     })
     const session = await createSession({
-      identifier: 'bob.test',
+      identifier: 'bob.guest.test',
       password: 'password',
     })
     // Valid access token
@@ -109,12 +109,12 @@ describe('auth', () => {
       identifier: 'bob@TEST.com',
       password: 'password',
     })
-    expect(session.handle).toEqual('bob.test')
+    expect(session.handle).toEqual('bob.guest.test')
   })
 
   it('fails on session creation with a bad password.', async () => {
     const sessionPromise = createSession({
-      identifier: 'bob.test',
+      identifier: 'bob.guest.test',
       password: 'wrong-pass',
     })
     await expect(sessionPromise).rejects.toThrow(
@@ -141,7 +141,7 @@ describe('auth', () => {
       password: 'any-password',
     })
     const knownIdentifierWrongPassword = await probe({
-      identifier: 'bob.test',
+      identifier: 'bob.guest.test',
       password: 'wrong-password',
     })
 
@@ -196,7 +196,7 @@ describe('auth', () => {
       password: 'any-password',
     })
     const knownIdentifierWrongPassword = await probe({
-      username: 'bob.test',
+      username: 'bob.guest.test',
       password: 'wrong-password',
     })
 
@@ -213,7 +213,7 @@ describe('auth', () => {
   it('provides valid access and refresh token on session refresh.', async () => {
     const email = 'carol@test.com'
     const account = await createAccount({
-      handle: 'carol.test',
+      handle: 'carol.guest.test',
       password: 'password',
       email,
     })
@@ -240,7 +240,7 @@ describe('auth', () => {
   it('handles racing refreshes', async () => {
     const email = 'dan@test.com'
     const account = await createAccount({
-      handle: 'dan.test',
+      handle: 'dan.guest.test',
       password: 'password',
       email,
     })
@@ -264,7 +264,7 @@ describe('auth', () => {
 
   it('refresh token provides new token with same id on multiple uses during grace period.', async () => {
     const account = await createAccount({
-      handle: 'eve.test',
+      handle: 'eve.guest.test',
       email: 'eve@test.com',
       password: 'password',
     })
@@ -284,7 +284,7 @@ describe('auth', () => {
   it('refresh token is revoked after grace period completes.', async () => {
     const { db } = network.pds.ctx.accountManager
     const account = await createAccount({
-      handle: 'evan.test',
+      handle: 'evan.guest.test',
       email: 'evan@test.com',
       password: 'password',
     })
@@ -314,7 +314,7 @@ describe('auth', () => {
 
   it('refresh token is revoked when session is deleted.', async () => {
     const account = await createAccount({
-      handle: 'finn.test',
+      handle: 'finn.guest.test',
       email: 'finn@test.com',
       password: 'password',
     })
@@ -326,7 +326,7 @@ describe('auth', () => {
 
   it('access token cannot be used to refresh a session.', async () => {
     const account = await createAccount({
-      handle: 'gordon.test',
+      handle: 'gordon.guest.test',
       email: 'gordon@test.com',
       password: 'password',
     })
@@ -338,7 +338,7 @@ describe('auth', () => {
 
   it('expired refresh token cannot be used to refresh a session.', async () => {
     const account = await createAccount({
-      handle: 'holga.test',
+      handle: 'holga.guest.test',
       email: 'holga@test.com',
       password: 'password',
     })
@@ -355,7 +355,7 @@ describe('auth', () => {
 
   it('actor takedown disallows fresh session.', async () => {
     const account = await createAccount({
-      handle: 'iris.test',
+      handle: 'iris.guest.test',
       email: 'iris@test.com',
       password: 'password',
     })
@@ -373,7 +373,7 @@ describe('auth', () => {
       },
     )
     await expect(
-      createSession({ identifier: 'iris.test', password: 'password' }),
+      createSession({ identifier: 'iris.guest.test', password: 'password' }),
     ).rejects.toMatchObject({
       error: 'AccountTakedown',
     })
@@ -381,7 +381,7 @@ describe('auth', () => {
 
   it('actor takedown disallows refresh session.', async () => {
     const account = await createAccount({
-      handle: 'jared.test',
+      handle: 'jared.guest.test',
       email: 'jared@test.com',
       password: 'password',
     })

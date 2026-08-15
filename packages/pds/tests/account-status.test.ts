@@ -24,7 +24,7 @@ describe('account-status', () => {
 
   it('takedown + activation triggers an error', async () => {
     const { did } = await client.call(com.atproto.server.createAccount, {
-      handle: 'iris.test',
+      handle: 'iris.guest.test',
       email: 'iris@test.com',
       password: 'password',
     })
@@ -47,7 +47,7 @@ describe('account-status', () => {
 
   it('activating a taken down account causes an error', async () => {
     const { did } = await client.call(com.atproto.server.createAccount, {
-      handle: 'iris2.test',
+      handle: 'iris2.guest.test',
       email: 'iris2@test.com',
       password: 'password',
     })
@@ -104,14 +104,14 @@ describe('account-status', () => {
 
     // Attempt login to ensure account is active
     await client.call(com.atproto.server.createSession, {
-      identifier: 'iris2.test',
+      identifier: 'iris2.guest.test',
       password: 'password',
     })
   })
 
   it('sequences an account status event when calling updateSubjectStatus without changing the status', async () => {
     const { did } = await client.call(com.atproto.server.createAccount, {
-      handle: 'iris3.test',
+      handle: 'iris3.guest.test',
       email: 'iris3@test.com',
       password: 'password',
     })
@@ -132,7 +132,7 @@ describe('account-status', () => {
 
   it('allows to takedown, then deactivate, an account', async () => {
     const { did } = await client.call(com.atproto.server.createAccount, {
-      handle: 'iris4.test',
+      handle: 'iris4.guest.test',
       email: 'iris4@test.com',
       password: 'password',
     })
@@ -170,7 +170,7 @@ describe('account-status', () => {
 
   it('throws when trying to activate a takedown account', async () => {
     const { did } = await client.call(com.atproto.server.createAccount, {
-      handle: 'iris5.test',
+      handle: 'iris5.guest.test',
       email: 'iris5@test.com',
       password: 'password',
     })

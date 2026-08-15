@@ -30,17 +30,30 @@ describe('crud operations', () => {
     aliceAgent = network.pds.getAgent()
     bobAgent = network.pds.getAgent()
 
-    await aliceAgent.createAccount({
-      email: 'alice@test.com',
-      handle: 'alice.test',
-      password: 'alice-pass',
-    })
+    // This file predates the Week 1 write guard and creates top-level
+    // app.bsky.feed.post records throughout purely to test generic CRUD
+    // mechanics — role permissions were never the point. Strikers (not the
+    // .guest. Catcher default) preserve that original intent; admin auth is
+    // required to grant it.
+    await aliceAgent.createAccount(
+      {
+        email: 'alice@test.com',
+        handle: 'alice.test',
+        password: 'alice-pass',
+        role: 'striker',
+      },
+      { headers: network.pds.adminAuthHeaders(), encoding: 'application/json' },
+    )
 
-    await bobAgent.createAccount({
-      email: 'bob@test.com',
-      handle: 'bob.test',
-      password: 'bob-pass',
-    })
+    await bobAgent.createAccount(
+      {
+        email: 'bob@test.com',
+        handle: 'bob.test',
+        password: 'bob-pass',
+        role: 'striker',
+      },
+      { headers: network.pds.adminAuthHeaders(), encoding: 'application/json' },
+    )
 
     expect(bobAgent.assertDid).not.toBe(aliceAgent.assertDid)
   })
@@ -51,11 +64,11 @@ describe('crud operations', () => {
 
   it('registers users', async () => {
     const res = await agent.com.atproto.server.createAccount({
-      handle: 'user1.test',
+      handle: 'user1.guest.test',
       email: 'user1@test.com',
       password: 'password',
     })
-    expect(res.data.handle).toBe('user1.test')
+    expect(res.data.handle).toBe('user1.guest.test')
     expect(res.data.accessJwt).toBeDefined()
   })
 

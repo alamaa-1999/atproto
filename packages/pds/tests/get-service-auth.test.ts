@@ -15,7 +15,7 @@ describe('com.atproto.server.getServiceAuth', () => {
     pdsDid = network.pds.ctx.cfg.service.did
     agent = network.pds.getAgent()
     const session = await agent.createAccount({
-      handle: 'alice.test',
+      handle: 'alice.guest.test',
       email: 'alice@test.com',
       password: 'alice-pass',
     })

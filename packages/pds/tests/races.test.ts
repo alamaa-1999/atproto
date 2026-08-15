@@ -20,11 +20,18 @@ describe('races', () => {
     })
     ctx = network.pds.ctx
     agent = network.pds.getAgent()
-    await agent.createAccount({
-      email: 'alice@test.com',
-      handle: 'alice.test',
-      password: 'alice-pass',
-    })
+    // Striker, not the .guest. Catcher default: the race being tested is
+    // between a raw storage-level write and a real XRPC-level post creation
+    // (line ~64 below) — role permissions were never the point of this file.
+    await agent.createAccount(
+      {
+        email: 'alice@test.com',
+        handle: 'alice.test',
+        password: 'alice-pass',
+        role: 'striker',
+      },
+      { headers: network.pds.adminAuthHeaders(), encoding: 'application/json' },
+    )
     did = agent.accountDid
     signingKey = await network.pds.ctx.actorStore.keypair(did)
   })

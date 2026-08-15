@@ -100,7 +100,7 @@ describe('account migration', () => {
 
     await newAgent.api.com.atproto.server.createAccount(
       {
-        handle: 'new-alice.test',
+        handle: 'new-alice.guest.test',
         email: 'alice@test.com',
         password: 'alice-pass',
         did: alice.did,
@@ -111,7 +111,7 @@ describe('account migration', () => {
       },
     )
     await newAgent.login({
-      identifier: 'new-alice.test',
+      identifier: 'new-alice.guest.test',
       password: 'alice-pass',
     })
 
@@ -213,6 +213,22 @@ describe('account migration', () => {
       expectedBlobs: 3,
       importedBlobs: 3,
     })
+
+    // The migration itself is authorized via service JWT, not admin auth, so
+    // `role` couldn't be granted at creation time (same admin-gating as any
+    // other createAccount call) — she landed on the new PDS as a Catcher
+    // regardless of her Striker status on the old one. Promote her now that
+    // rotation-key authority has actually transferred (submitPlcOperation
+    // above) and the account is active — matches her real pre-migration
+    // status, and the post-creation check below expects her to be able to
+    // post.
+    await newAgent.api.com.atproto.admin.promoteAccountToStriker(
+      { account: 'new-alice.guest.test' },
+      {
+        headers: newPds.adminAuthHeaders(),
+        encoding: 'application/json',
+      },
+    )
 
     await oldAgent.com.atproto.server.deactivateAccount({})
 

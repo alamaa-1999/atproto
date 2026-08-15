@@ -16,11 +16,19 @@ describe('app_passwords', () => {
     appAgent = network.pds.getAgent()
     priviAgent = network.pds.getAgent()
 
-    await accntAgent.createAccount({
-      handle: 'alice.test',
-      email: 'alice@test.com',
-      password: 'alice-pass',
-    })
+    // Striker, not the .guest. Catcher default: 'allows actions to be
+    // performed from app' below creates genuine top-level posts to test
+    // that app-password-scoped sessions can still post despite restricted
+    // scope — role permissions were never the point of this file.
+    await accntAgent.createAccount(
+      {
+        handle: 'alice.test',
+        email: 'alice@test.com',
+        password: 'alice-pass',
+        role: 'striker',
+      },
+      { headers: network.pds.adminAuthHeaders(), encoding: 'application/json' },
+    )
   })
 
   afterAll(async () => {

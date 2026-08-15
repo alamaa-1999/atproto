@@ -77,7 +77,7 @@ describe('pds admin invite views', () => {
     const useCode = async (code: string) => {
       const name = randomStr(8, 'base32')
       await agent.api.com.atproto.server.createAccount({
-        handle: `${name}.test`,
+        handle: `${name}.guest.test`,
         email: `${name}@test.com`,
         password: name,
         inviteCode: code,
