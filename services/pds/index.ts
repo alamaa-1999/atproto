@@ -1,6 +1,11 @@
 import type { AtIdentifierString } from '@atproto/lex'
 import { PDS, httpLogger } from '@atproto/pds'
 
+// Infrastructure subdomains that should get a certificate but aren't and
+// never will be account handles - not covered by the account-handle lookup
+// below, so listed explicitly rather than bypassing that check.
+const ADDITIONAL_APPROVED_DOMAINS = new Set(['app.sunnahsky.com'])
+
 void PDS.run({
   onCreated: (pds) => {
     // Caddy's on_demand_tls "ask" callback: approves or denies certificate
@@ -17,7 +22,10 @@ void PDS.run({
             message: 'bad or missing domain query param',
           })
         }
-        if (domain === pds.ctx.cfg.service.hostname) {
+        if (
+          domain === pds.ctx.cfg.service.hostname ||
+          ADDITIONAL_APPROVED_DOMAINS.has(domain)
+        ) {
           return res.json({ success: true })
         }
         const isHostedHandle = pds.ctx.cfg.identity.serviceHandleDomains.find(
