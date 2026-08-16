@@ -25,7 +25,7 @@ import {
   isValidRecordKey,
 } from '@atproto/syntax'
 import { hasExplicitSlur } from '../handle/explicit-slurs.js'
-import { app, chat, com } from '../lexicons/index.js'
+import { app, chat, com, site } from '../lexicons/index.js'
 import {
   InvalidRecordError,
   type PreparedCreate,
@@ -58,6 +58,14 @@ const knownSchemas = new Map<string, RecordSchema>(
     chat.bsky.actor.declaration.main,
     com.atproto.lexicon.schema.main,
     com.germnetwork.declaration.main,
+    site.standard.document.main,
+    site.standard.publication.main,
+    // site.standard.theme.basic.main is deliberately NOT registered here:
+    // publication's optional `basicTheme` field is validated automatically
+    // as a nested ref wired at module-compile-time (see publication.defs.ts),
+    // not through this map. This entry would only matter for a standalone
+    // top-level site.standard.theme.basic record write, which is out of
+    // scope for the articles feature.
   ].map((schema: RecordSchema) => [schema.$type, schema]),
 )
 
