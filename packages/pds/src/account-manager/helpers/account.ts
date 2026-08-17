@@ -67,6 +67,29 @@ export const selectAccountQB = (db: AccountDb, flags?: AvailabilityFlags) => {
     ])
 }
 
+/**
+ * Active accounts with the Striker role, DID + handle only. A lean,
+ * dedicated query rather than a narrowed {@link selectAccountQB} - that
+ * helper's full column set (email, the `account` join, etc.) is for admin/
+ * account-detail views, not this public, unauthenticated, DID+handle-only
+ * route. Always excludes takendown/deactivated accounts (no
+ * `AvailabilityFlags` param, unlike `selectAccountQB`) - a public route
+ * should never be able to leak either. Handle-less rows are excluded too:
+ * `actor.handle` is nullable in the schema, but every real Striker has one
+ * (set atomically at creation or promotion), so a null-handle Striker row is
+ * a transient/corrupt state, not a case callers need to handle.
+ */
+export const selectStrikerActorsQB = (db: AccountDb) => {
+  const { ref } = db.db.dynamic
+  return db.db
+    .selectFrom('actor')
+    .where(notSoftDeletedClause(ref('actor')))
+    .where('actor.deactivatedAt', 'is', null)
+    .where('actor.role', '=', 'striker')
+    .where('actor.handle', 'is not', null)
+    .select(['actor.did', 'actor.handle', 'actor.createdAt'])
+}
+
 export const getAccount = async (
   db: AccountDb,
   handleOrDid: AtIdentifierString,

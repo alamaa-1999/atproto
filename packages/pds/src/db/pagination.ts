@@ -109,6 +109,34 @@ export class TimeCidKeyset<
   }
 }
 
+type CreatedAtDidResult = { createdAt: string; did: string }
+type TimeDidLabeledResult = Cursor
+
+export class TimeDidKeyset<
+  TimeDidResult = CreatedAtDidResult,
+> extends GenericKeyset<TimeDidResult, TimeDidLabeledResult> {
+  labelResult(result: TimeDidResult): TimeDidLabeledResult
+  labelResult<TimeDidResult extends CreatedAtDidResult>(result: TimeDidResult) {
+    return { primary: result.createdAt, secondary: result.did }
+  }
+  labeledResultToCursor(labeled: TimeDidLabeledResult) {
+    return {
+      primary: new Date(labeled.primary).getTime().toString(),
+      secondary: labeled.secondary,
+    }
+  }
+  cursorToLabeledResult(cursor: Cursor) {
+    const primaryDate = new Date(parseInt(cursor.primary, 10))
+    if (isNaN(primaryDate.getTime())) {
+      throw new InvalidRequestError('Malformed cursor')
+    }
+    return {
+      primary: primaryDate.toISOString(),
+      secondary: cursor.secondary,
+    }
+  }
+}
+
 export const paginate = <
   QB extends AnyQb,
   K extends GenericKeyset<unknown, any>,

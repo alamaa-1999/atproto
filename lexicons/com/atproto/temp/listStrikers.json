@@ -1,0 +1,44 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.temp.listStrikers",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Enumerates the DID and current handle of every active account with the Striker role on this server. Does not require auth; implemented by PDS. THIS IS A TEMPORARY UNSPECCED ROUTE, specific to this fork's role model.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 500
+          },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["strikers"],
+          "properties": {
+            "cursor": { "type": "string" },
+            "strikers": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#striker" }
+            }
+          }
+        }
+      }
+    },
+    "striker": {
+      "type": "object",
+      "required": ["did", "handle"],
+      "properties": {
+        "did": { "type": "string", "format": "did" },
+        "handle": { "type": "string", "format": "handle" }
+      }
+    }
+  }
+}

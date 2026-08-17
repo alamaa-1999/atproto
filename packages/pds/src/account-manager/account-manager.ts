@@ -24,6 +24,7 @@ import { assertValidDidDocumentForService } from '../api/com/atproto/server/util
 import { AuthScope } from '../auth-scope.js'
 import type { ServerConfig } from '../config/config.js'
 import { softDeleted } from '../db/index.js'
+import { TimeDidKeyset, paginate } from '../db/pagination.js'
 import { hasExplicitSlur } from '../handle/explicit-slurs.js'
 import {
   baseNormalizeAndValidate,
@@ -129,6 +130,26 @@ export class AccountManager {
     flags?: accountHelpers.AvailabilityFlags,
   ): Promise<Map<string, ActorAccount>> {
     return accountHelpers.getAccounts(this.db, dids, flags)
+  }
+
+  async listStrikers(opts: { limit: number; cursor?: string }): Promise<{
+    strikers: { did: DidString; handle: HandleString }[]
+    cursor?: string
+  }> {
+    const { ref } = this.db.db.dynamic
+    const keyset = new TimeDidKeyset(ref('actor.createdAt'), ref('actor.did'))
+    const builder = paginate(accountHelpers.selectStrikerActorsQB(this.db), {
+      limit: opts.limit,
+      cursor: opts.cursor,
+      keyset,
+      direction: 'asc',
+      tryIndex: true,
+    })
+    const res = await builder.execute()
+    return {
+      strikers: res.map(({ did, handle }) => ({ did, handle: handle! })),
+      cursor: keyset.packFromResult(res),
+    }
   }
 
   async getAccountByEmail(

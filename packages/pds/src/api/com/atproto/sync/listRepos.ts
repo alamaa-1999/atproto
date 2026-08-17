@@ -1,11 +1,7 @@
-import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
+import type { Server } from '@atproto/xrpc-server'
 import { formatAccountStatus } from '../../../../account-manager/account-manager.js'
 import type { AppContext } from '../../../../context.js'
-import {
-  type Cursor,
-  GenericKeyset,
-  paginate,
-} from '../../../../db/pagination.js'
+import { TimeDidKeyset, paginate } from '../../../../db/pagination.js'
 import { com } from '../../../../lexicons/index.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -51,28 +47,4 @@ export default function (server: Server, ctx: AppContext) {
       },
     }
   })
-}
-
-type TimeDidResult = { createdAt: string; did: string }
-
-export class TimeDidKeyset extends GenericKeyset<TimeDidResult, Cursor> {
-  labelResult(result: TimeDidResult): Cursor {
-    return { primary: result.createdAt, secondary: result.did }
-  }
-  labeledResultToCursor(labeled: Cursor) {
-    return {
-      primary: new Date(labeled.primary).getTime().toString(),
-      secondary: labeled.secondary,
-    }
-  }
-  cursorToLabeledResult(cursor: Cursor) {
-    const primaryDate = new Date(parseInt(cursor.primary, 10))
-    if (isNaN(primaryDate.getTime())) {
-      throw new InvalidRequestError('Malformed cursor')
-    }
-    return {
-      primary: primaryDate.toISOString(),
-      secondary: cursor.secondary,
-    }
-  }
 }

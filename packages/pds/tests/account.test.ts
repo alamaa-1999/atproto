@@ -930,6 +930,89 @@ describe('account', () => {
     })
   })
 
+  describe('listStrikers', () => {
+    let freshAgent: AtpAgent
+
+    beforeAll(() => {
+      freshAgent = network.pds.getAgent()
+    })
+
+    it('lists active Strikers, DID + handle, excluding Catchers', async () => {
+      const striker1 = await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'liststrk1@test.com',
+          handle: 'liststrk1.test',
+          password: 'test123',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+      const striker2 = await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'liststrk2@test.com',
+          handle: 'liststrk2.test',
+          password: 'test123',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'liststrkcat@test.com',
+        handle: 'liststrkcat.guest.test',
+        password: 'test123',
+      })
+
+      const res = await freshAgent.api.com.atproto.temp.listStrikers({})
+      const dids = res.data.strikers.map((s) => s.did)
+
+      expect(dids).toContain(striker1.data.did)
+      expect(dids).toContain(striker2.data.did)
+
+      const catcher = await ctx.accountManager.getAccount(
+        'liststrkcat.guest.test',
+      )
+      expect(dids).not.toContain(catcher?.did)
+
+      const found1 = res.data.strikers.find((s) => s.did === striker1.data.did)
+      expect(found1?.handle).toBe('liststrk1.test')
+    })
+
+    it('excludes a takendown Striker', async () => {
+      const created = await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'liststrktd@test.com',
+          handle: 'liststrktd.test',
+          password: 'test123',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      await ctx.accountManager.takedownAccount(created.data.did, {
+        applied: true,
+      })
+
+      const res = await freshAgent.api.com.atproto.temp.listStrikers({})
+      const dids = res.data.strikers.map((s) => s.did)
+      expect(dids).not.toContain(created.data.did)
+    })
+
+    it('succeeds with no auth headers at all', async () => {
+      await expect(
+        freshAgent.api.com.atproto.temp.listStrikers({}),
+      ).resolves.toBeDefined()
+    })
+  })
+
   it('allows an admin to update password', async () => {
     const tryUnauthed = agent.api.com.atproto.admin.updateAccountPassword({
       did,
