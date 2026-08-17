@@ -112,11 +112,11 @@ export class TimeCidKeyset<
 type CreatedAtDidResult = { createdAt: string; did: string }
 type TimeDidLabeledResult = Cursor
 
-export class TimeDidKeyset<
-  TimeDidResult = CreatedAtDidResult,
-> extends GenericKeyset<TimeDidResult, TimeDidLabeledResult> {
-  labelResult(result: TimeDidResult): TimeDidLabeledResult
-  labelResult<TimeDidResult extends CreatedAtDidResult>(result: TimeDidResult) {
+export class TimeDidKeyset extends GenericKeyset<
+  CreatedAtDidResult,
+  TimeDidLabeledResult
+> {
+  labelResult(result: CreatedAtDidResult) {
     return { primary: result.createdAt, secondary: result.did }
   }
   labeledResultToCursor(labeled: TimeDidLabeledResult) {
