@@ -219,4 +219,33 @@ describe('articles', () => {
     })
     expect(res.data.validationStatus).toBe('valid')
   })
+
+  // Empirical check for `articles client ui plan.md`'s Phase 1, step 4: the
+  // lexicon has no native `category` field. Confirmed by actually running
+  // this against a live local dev PDS, not assumed: an unrecognized
+  // extension property is neither rejected nor silently stripped under
+  // `validate: true` - it's accepted and preserved verbatim on read-back.
+  // No `validate: false` escape hatch is needed for this field.
+  it('validate: true accepts and preserves an unrecognized `category` extension field', async () => {
+    const res = await strikerAgent.com.atproto.repo.createRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      validate: true,
+      record: {
+        $type: 'site.standard.document',
+        site: 'https://striker.test',
+        title: 'Category extension field check',
+        publishedAt: new Date().toISOString(),
+        category: 'fiqh',
+      },
+    })
+    expect(res.data.validationStatus).toBe('valid')
+
+    const got = await strikerAgent.com.atproto.repo.getRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      rkey: new AtUri(res.data.uri).rkey,
+    })
+    expect((got.data.value as { category?: unknown }).category).toBe('fiqh')
+  })
 })
