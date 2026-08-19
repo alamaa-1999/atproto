@@ -528,17 +528,20 @@ export class AccountManager {
       handle = newHandle
     }
 
-    await accountHelpers.setRole(this.db, did, 'striker')
-
     // Force any active Catcher session to end: the client cached the old
     // (now-stale) handle in its account list, and a promoted Striker should
     // explicitly re-authenticate rather than keep running against stale
-    // client-side state. Same two calls takedownAccount() uses, but not
-    // transactional with the role flip above - both are plain deletes and
-    // safe no-ops if a retry finds nothing left to revoke, matching this
-    // method's existing idempotent-steps style.
-    await auth.revokeRefreshTokensByDid(this.db, did)
-    await token.removeByDid(this.db, did)
+    // client-side state. Transactional with the role flip (matching
+    // takedownAccount()/deactivateAccount()/updateAccountPassword() below) so
+    // a failed revoke can't leave the account promoted with its old Catcher
+    // tokens still valid - if this throws, the role flip rolls back too, and
+    // a plain retry of promoteToStriker() reaches this step fresh rather than
+    // being turned away by the "already a Striker" guard above.
+    await this.db.transaction(async (dbTxn) => {
+      await accountHelpers.setRole(dbTxn, did, 'striker')
+      await auth.revokeRefreshTokensByDid(dbTxn, did)
+      await token.removeByDid(dbTxn, did)
+    })
 
     return { ...account, role: 'striker', handle }
   }
