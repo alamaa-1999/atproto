@@ -928,6 +928,44 @@ describe('account', () => {
         }),
       ).resolves.toBeDefined()
     })
+
+    it('revokes the promoted account refresh token, forcing re-login', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'logout-me@test.com',
+        handle: 'logout-me.guest.test',
+        password: 'test123',
+      })
+
+      const session = await freshAgent.api.com.atproto.server.createSession({
+        identifier: 'logout-me.guest.test',
+        password: 'test123',
+      })
+
+      await freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+        { account: 'logout-me.guest.test' },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      // The pre-promotion refresh token no longer works: the Catcher session
+      // is forced to end, so the client re-authenticates and picks up the
+      // migrated Striker handle instead of running on stale cached state.
+      await expect(
+        freshAgent.api.com.atproto.server.refreshSession(undefined, {
+          headers: { authorization: `Bearer ${session.data.refreshJwt}` },
+        }),
+      ).rejects.toThrow('Token has been revoked')
+
+      // A fresh login under the new handle works normally.
+      await expect(
+        freshAgent.api.com.atproto.server.createSession({
+          identifier: 'logout-me.test',
+          password: 'test123',
+        }),
+      ).resolves.toBeDefined()
+    })
   })
 
   describe('listStrikers', () => {
