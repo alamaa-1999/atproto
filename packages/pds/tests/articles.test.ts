@@ -248,4 +248,38 @@ describe('articles', () => {
     })
     expect((got.data.value as { category?: unknown }).category).toBe('fiqh')
   })
+
+  // Same mechanism as the `category` check above, for a distinct need: credit
+  // for the actual human contributor (author/translator) as opposed to the
+  // Striker account doing the posting - e.g. an institutional Striker
+  // publishing a named scholar's lecture transcript. Free text, decided
+  // directly with the project owner rather than a structured/strongRef
+  // contributor record, since a canonical cross-article contributor entity
+  // isn't needed yet. Confirmed empirically, same as `category`: an
+  // unrecognized extension property survives `validate: true` unstripped.
+  it('validate: true accepts and preserves unrecognized `author`/`translator` extension fields', async () => {
+    const res = await strikerAgent.com.atproto.repo.createRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      validate: true,
+      record: {
+        $type: 'site.standard.document',
+        site: 'https://striker.test',
+        title: 'Author/translator extension field check',
+        publishedAt: new Date().toISOString(),
+        author: 'Imam Ahmad ibn Hanbal',
+        translator: 'Zubair Ibrahim',
+      },
+    })
+    expect(res.data.validationStatus).toBe('valid')
+
+    const got = await strikerAgent.com.atproto.repo.getRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      rkey: new AtUri(res.data.uri).rkey,
+    })
+    const value = got.data.value as { author?: unknown; translator?: unknown }
+    expect(value.author).toBe('Imam Ahmad ibn Hanbal')
+    expect(value.translator).toBe('Zubair Ibrahim')
+  })
 })
