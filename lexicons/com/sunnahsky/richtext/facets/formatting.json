@@ -19,7 +19,7 @@
       "description": "Facet feature applying a text color to the underlying span. For the byteSlice provided it should surround the underlying text.",
       "properties": {
         "value": {
-          "description": "A CSS-compatible color value, e.g. a hex string like #1A2B3C.",
+          "description": "A CSS-compatible color value, e.g. a hex string like #1A2B3C. SECURITY: this lexicon has no way to constrain the string's actual syntax (atproto has no regex/pattern validator) - any consuming renderer MUST treat this value as untrusted user input and allowlist it (e.g. #RRGGBB/#RGB plus a fixed keyword set) before interpolating it into a style. Never pass it through raw - doing so is a CSS-injection vector.",
           "maxLength": 32,
           "type": "string"
         }
