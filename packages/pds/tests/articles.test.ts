@@ -282,4 +282,95 @@ describe('articles', () => {
     expect(value.author).toBe('Imam Ahmad ibn Hanbal')
     expect(value.translator).toBe('Zubair Ibrahim')
   })
+
+  // Empirical check for `articles client ui plan.md`'s Phase 2a: proves the
+  // `content` union accepts a real at.markpub.markdown value - not just a
+  // flat extension property like `category`/`author`/`translator` above, but
+  // a nested $type-tagged object with its own facets array - and that a mix
+  // of an upstream at.markpub facet and two new Sunnahsky-owned custom facets
+  // (com.sunnahsky.richtext.facets.formatting#underline,
+  // com.sunnahsky.richtext.facets.blocks#textAlign) round-trips unchanged.
+  // Byte offsets below are correct for the exact literal string used (pure
+  // ASCII, so byte and character indices coincide) - recompute if the string
+  // ever changes.
+  it('validate: true accepts and preserves a real at.markpub.markdown content value with custom facets', async () => {
+    const res = await strikerAgent.com.atproto.repo.createRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      validate: true,
+      record: {
+        $type: 'site.standard.document',
+        site: 'https://striker.test',
+        title: 'Content lexicon round-trip check',
+        publishedAt: new Date().toISOString(),
+        content: {
+          $type: 'at.markpub.markdown',
+          flavor: 'gfm',
+          text: {
+            $type: 'at.markpub.text',
+            markdown: 'This is bold and this is underlined.',
+            facets: [
+              {
+                $type: 'at.markpub.facets.baseFormatting',
+                index: { byteStart: 8, byteEnd: 12 },
+                features: [
+                  { $type: 'at.markpub.facets.baseFormatting#strong' },
+                ],
+              },
+              {
+                $type: 'com.sunnahsky.richtext.facets.formatting',
+                index: { byteStart: 25, byteEnd: 35 },
+                features: [
+                  {
+                    $type: 'com.sunnahsky.richtext.facets.formatting#underline',
+                  },
+                ],
+              },
+              {
+                $type: 'com.sunnahsky.richtext.facets.blocks',
+                index: { byteStart: 0, byteEnd: 36 },
+                features: [
+                  {
+                    $type: 'com.sunnahsky.richtext.facets.blocks#textAlign',
+                    value: 'center',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    })
+    expect(res.data.validationStatus).toBe('valid')
+
+    const got = await strikerAgent.com.atproto.repo.getRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      rkey: new AtUri(res.data.uri).rkey,
+    })
+    const value = got.data.value as {
+      content?: { text?: { markdown?: unknown; facets?: unknown[] } }
+    }
+    expect(value.content?.text?.markdown).toBe(
+      'This is bold and this is underlined.',
+    )
+    expect(value.content?.text?.facets).toHaveLength(3)
+    expect(value.content?.text?.facets?.[1]).toMatchObject({
+      $type: 'com.sunnahsky.richtext.facets.formatting',
+      index: { byteStart: 25, byteEnd: 35 },
+      features: [
+        { $type: 'com.sunnahsky.richtext.facets.formatting#underline' },
+      ],
+    })
+    expect(value.content?.text?.facets?.[2]).toMatchObject({
+      $type: 'com.sunnahsky.richtext.facets.blocks',
+      index: { byteStart: 0, byteEnd: 36 },
+      features: [
+        {
+          $type: 'com.sunnahsky.richtext.facets.blocks#textAlign',
+          value: 'center',
+        },
+      ],
+    })
+  })
 })

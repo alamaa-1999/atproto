@@ -1,0 +1,56 @@
+{
+  "defs": {
+    "byteSlice": {
+      "description": "Specifies the sub-string range a facet feature applies to. Start index is inclusive, end index is exclusive. Indices are zero-indexed, counting bytes of the UTF-8 encoded text. NOTE: some languages, like Javascript, use UTF-16 or Unicode codepoints for string slice indexing; in these languages, convert to byte arrays before working with facets. Byte slices can overlap.",
+      "properties": {
+        "byteEnd": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "byteStart": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": ["byteStart", "byteEnd"],
+      "type": "object"
+    },
+    "color": {
+      "description": "Facet feature applying a text color to the underlying span. For the byteSlice provided it should surround the underlying text.",
+      "properties": {
+        "value": {
+          "description": "A CSS-compatible color value, e.g. a hex string like #1A2B3C.",
+          "maxLength": 32,
+          "type": "string"
+        }
+      },
+      "required": ["value"],
+      "type": "object"
+    },
+    "main": {
+      "description": "Span-level rich-text facets not covered by at.markpub.facets.baseFormatting - underline and text color. Same index/features shape as at.markpub.facets.baseFormatting, kept as a separate lexicon rather than a fork of it.",
+      "properties": {
+        "features": {
+          "items": {
+            "refs": ["#underline", "#color"],
+            "type": "union"
+          },
+          "type": "array"
+        },
+        "index": {
+          "ref": "#byteSlice",
+          "type": "ref"
+        }
+      },
+      "required": ["index", "features"],
+      "type": "object"
+    },
+    "underline": {
+      "description": "Facet feature for an underlined span. For the byteSlice provided it should surround the underlying text.",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  "id": "com.sunnahsky.richtext.facets.formatting",
+  "lexicon": 1
+}

@@ -1,0 +1,50 @@
+{
+  "defs": {
+    "byteSlice": {
+      "description": "Specifies the sub-string range a facet feature applies to. Start index is inclusive, end index is exclusive. Indices are zero-indexed, counting bytes of the UTF-8 encoded text. NOTE: some languages, like Javascript, use UTF-16 or Unicode codepoints for string slice indexing; in these languages, convert to byte arrays before working with facets. Byte slices can overlap.",
+      "properties": {
+        "byteEnd": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "byteStart": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": ["byteStart", "byteEnd"],
+      "type": "object"
+    },
+    "main": {
+      "description": "Block-level rich-text facets not covered by at.markpub.facets.baseBlocks - paragraph alignment. Same index/features shape as at.markpub.facets.baseBlocks, kept as a separate lexicon rather than a fork of it. Deliberately one member this pass (textAlign) - an audio-embed facet was considered and descoped, not built.",
+      "properties": {
+        "features": {
+          "items": {
+            "refs": ["#textAlign"],
+            "type": "union"
+          },
+          "type": "array"
+        },
+        "index": {
+          "ref": "#byteSlice",
+          "type": "ref"
+        }
+      },
+      "required": ["index", "features"],
+      "type": "object"
+    },
+    "textAlign": {
+      "description": "Facet feature setting paragraph alignment. The byteSlice provided should span the whole paragraph the alignment applies to.",
+      "properties": {
+        "value": {
+          "knownValues": ["left", "center", "right", "justify"],
+          "type": "string"
+        }
+      },
+      "required": ["value"],
+      "type": "object"
+    }
+  },
+  "id": "com.sunnahsky.richtext.facets.blocks",
+  "lexicon": 1
+}
