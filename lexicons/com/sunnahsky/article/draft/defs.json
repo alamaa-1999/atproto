@@ -1,0 +1,109 @@
+{
+  "lexicon": 1,
+  "id": "com.sunnahsky.article.draft.defs",
+  "defs": {
+    "draft": {
+      "type": "object",
+      "description": "An in-progress article draft. Every field is optional, unlike site.standard.document, since a draft may be incomplete. THIS IS A TEMPORARY UNSPECCED LEXICON, specific to this fork's article-authoring feature.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxGraphemes": 500,
+          "maxLength": 5000
+        },
+        "description": {
+          "type": "string",
+          "maxGraphemes": 3000,
+          "maxLength": 30000
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Raw markdown body text."
+        },
+        "flavor": {
+          "type": "string",
+          "knownValues": ["gfm", "commonmark"]
+        },
+        "facets": {
+          "type": "array",
+          "items": {
+            "type": "union",
+            "closed": false,
+            "refs": []
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxGraphemes": 128,
+            "maxLength": 1280
+          }
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "translators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coverImage": {
+          "type": "blob",
+          "accept": ["image/*"],
+          "maxSize": 1000000,
+          "description": "Image to use for thumbnail or cover image. Less than 1MB in size."
+        }
+      }
+    },
+    "draftView": {
+      "type": "object",
+      "required": ["id", "draft", "createdAt", "updatedAt"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "tid",
+          "description": "A TID to be used as a draft identifier."
+        },
+        "draft": {
+          "type": "ref",
+          "ref": "#draft"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "datetime"
+        }
+      }
+    },
+    "draftWithId": {
+      "type": "object",
+      "required": ["id", "draft"],
+      "description": "A draft with an identifier, used to store drafts in private storage (stash).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "tid",
+          "description": "A TID to be used as a draft identifier."
+        },
+        "draft": {
+          "type": "ref",
+          "ref": "#draft"
+        }
+      }
+    }
+  }
+}

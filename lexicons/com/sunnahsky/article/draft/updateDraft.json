@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "com.sunnahsky.article.draft.updateDraft",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Updates an article draft using private storage (stash). If the draft ID does not point to an existing draft, this is treated as a draft creation - the same Striker-role and drafts-limit checks createDraft enforces are applied here too. Requires authentication. THIS IS A TEMPORARY UNSPECCED ROUTE, specific to this fork's article-authoring feature.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["draft"],
+          "properties": {
+            "draft": {
+              "type": "ref",
+              "ref": "com.sunnahsky.article.draft.defs#draftWithId"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotAStriker",
+          "description": "The authenticated account does not have the Striker role, and the target draft ID does not already exist."
+        },
+        {
+          "name": "ArticleDraftLimitReached",
+          "description": "The target draft ID does not already exist, and creating it would exceed the account's drafts limit."
+        }
+      ]
+    }
+  }
+}

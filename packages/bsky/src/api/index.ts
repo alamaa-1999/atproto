@@ -99,6 +99,10 @@ import resolveHandle from './com/atproto/identity/resolveHandle.js'
 import queryLabels from './com/atproto/label/queryLabels.js'
 import getRecord from './com/atproto/repo/getRecord.js'
 import fetchLabels from './com/atproto/temp/fetchLabels.js'
+import adCreateDraft from './com/sunnahsky/article/draft/createDraft.js'
+import adDeleteDraft from './com/sunnahsky/article/draft/deleteDraft.js'
+import adGetDrafts from './com/sunnahsky/article/draft/getDrafts.js'
+import adUpdateDraft from './com/sunnahsky/article/draft/updateDraft.js'
 import internalGetProfiles from './internal/bsky/actor/getProfiles.js'
 
 export * as health from './health.js'
@@ -213,6 +217,11 @@ export default function (server: Server, ctx: AppContext) {
   getRecord(server, ctx)
   fetchLabels(server, ctx)
   queryLabels(server, ctx)
+  // com.sunnahsky.article.draft
+  adCreateDraft(server, ctx)
+  adDeleteDraft(server, ctx)
+  adGetDrafts(server, ctx)
+  adUpdateDraft(server, ctx)
   // internal.bsky
   internalGetProfiles(server, ctx)
 }

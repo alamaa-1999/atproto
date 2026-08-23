@@ -1,0 +1,47 @@
+{
+  "lexicon": 1,
+  "id": "com.sunnahsky.article.draft.createDraft",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Inserts an article draft using private storage (stash). Requires authentication and Striker role - a non-Striker account or a Striker at their drafts limit will be rejected. THIS IS A TEMPORARY UNSPECCED ROUTE, specific to this fork's article-authoring feature.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["draft"],
+          "properties": {
+            "draft": {
+              "type": "ref",
+              "ref": "com.sunnahsky.article.draft.defs#draft"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "tid",
+              "description": "The ID of the created draft."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotAStriker",
+          "description": "The authenticated account does not have the Striker role."
+        },
+        {
+          "name": "ArticleDraftLimitReached",
+          "description": "Trying to insert a new draft when the limit was already reached."
+        }
+      ]
+    }
+  }
+}

@@ -16,11 +16,11 @@
       "type": "object"
     },
     "main": {
-      "description": "Block-level rich-text facets not covered by at.markpub.facets.baseBlocks - paragraph alignment. Same index/features shape as at.markpub.facets.baseBlocks, kept as a separate lexicon rather than a fork of it. Deliberately one member this pass (textAlign) - an audio-embed facet was considered and descoped, not built.",
+      "description": "Block-level rich-text facets not covered by at.markpub.facets.baseBlocks - paragraph alignment and named article typography variants. Same index/features shape as at.markpub.facets.baseBlocks, kept as a separate lexicon rather than a fork of it. An audio-embed facet was considered and descoped, not built.",
       "properties": {
         "features": {
           "items": {
-            "refs": ["#textAlign"],
+            "refs": ["#textAlign", "#typography"],
             "type": "union"
           },
           "type": "array"
@@ -38,6 +38,17 @@
       "properties": {
         "value": {
           "knownValues": ["left", "center", "right", "justify"],
+          "type": "string"
+        }
+      },
+      "required": ["value"],
+      "type": "object"
+    },
+    "typography": {
+      "description": "Facet feature marking a paragraph as using a named article typography variant beyond plain body text (e.g. an Arabic-script paragraph or blockquote rendered in a different font/size/justification than the surrounding text). The byteSlice provided should span the whole paragraph the variant applies to.",
+      "properties": {
+        "value": {
+          "knownValues": ["arabicParagraph", "arabicQuote"],
           "type": "string"
         }
       },

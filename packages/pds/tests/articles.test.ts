@@ -116,6 +116,38 @@ describe('articles', () => {
     )
   })
 
+  // Regression coverage for the article-editing feature: `assertCanWriteRecord`
+  // (packages/pds/src/api/com/atproto/repo/util.ts) is documented to cover
+  // "every write path that can persist these record types - create or
+  // update, not just createRecord" - this proves that holds for the
+  // `applyWrites#update` path specifically, which is what the article-edit
+  // feature's `publishArticle()` actually issues (not `putRecord`). The
+  // check fires purely off role + collection before any record lookup, so
+  // no real pre-existing document is needed for this to be a meaningful
+  // rejection test.
+  it('a catcher cannot update a document via applyWrites', async () => {
+    await expect(
+      catcherAgent.com.atproto.repo.applyWrites({
+        repo: catcherAgent.assertDid,
+        writes: [
+          {
+            $type: 'com.atproto.repo.applyWrites#update',
+            collection: 'site.standard.document',
+            rkey: TID.nextStr(),
+            value: {
+              $type: 'site.standard.document',
+              site: 'https://catcher.test',
+              title: 'Should not work either',
+              publishedAt: new Date().toISOString(),
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      'Catchers cannot create or edit articles or publications.',
+    )
+  })
+
   it('writes a document and its companion post atomically, with a pre-computed bskyPostRef', async () => {
     // The companion post's rkey and CID are computed client-side, before
     // either record is submitted, so the document's bskyPostRef can point
@@ -283,6 +315,44 @@ describe('articles', () => {
     expect(value.translator).toBe('Zubair Ibrahim')
   })
 
+  // Widening from `category`/`author`/`translator` extension fields (checked
+  // singular above) to `categories`/`authors`/`translators` arrays - the
+  // ArticleCompose Figma pass made all three multi-select, per the design
+  // owner. Still just unrecognized extension properties, not real lexicon
+  // schema members, so this is confirming the same PDS behavior extends to
+  // an array value, not a new mechanism.
+  it('validate: true accepts and preserves array-shaped `authors`/`translators`/`categories` extension fields', async () => {
+    const res = await strikerAgent.com.atproto.repo.createRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      validate: true,
+      record: {
+        $type: 'site.standard.document',
+        site: 'https://striker.test',
+        title: 'Multi-select author/translator/category extension field check',
+        publishedAt: new Date().toISOString(),
+        authors: ['Imam Ahmad ibn Hanbal'],
+        translators: ['Zubair Ibrahim', 'Abu Inayah Seif'],
+        categories: ['Aqidah (Creed)', 'Fiqh (Jurisprudence)'],
+      },
+    })
+    expect(res.data.validationStatus).toBe('valid')
+
+    const got = await strikerAgent.com.atproto.repo.getRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      rkey: new AtUri(res.data.uri).rkey,
+    })
+    const value = got.data.value as {
+      authors?: unknown
+      translators?: unknown
+      categories?: unknown
+    }
+    expect(value.authors).toEqual(['Imam Ahmad ibn Hanbal'])
+    expect(value.translators).toEqual(['Zubair Ibrahim', 'Abu Inayah Seif'])
+    expect(value.categories).toEqual(['Aqidah (Creed)', 'Fiqh (Jurisprudence)'])
+  })
+
   // Empirical check for `articles client ui plan.md`'s Phase 2a: proves the
   // `content` union accepts a real at.markpub.markdown value - not just a
   // flat extension property like `category`/`author`/`translator` above, but
@@ -369,6 +439,90 @@ describe('articles', () => {
         {
           $type: 'com.sunnahsky.richtext.facets.blocks#textAlign',
           value: 'center',
+        },
+      ],
+    })
+  })
+
+  // Confirms the `#typography` facet added alongside `#textAlign` in
+  // `com.sunnahsky.richtext.facets.blocks#main`'s `features` union (for
+  // Arabic Paragraph / Arabic Block Quote) round-trips unchanged, and that a
+  // single document can carry both union members across two different
+  // paragraphs. Byte offsets are correct for the exact literal string used
+  // (pure ASCII except the second line, encoded as UTF-8 - recompute if the
+  // string ever changes).
+  it('validate: true accepts and preserves a #typography facet alongside #textAlign', async () => {
+    const markdown = 'Centered line.\nArabic paragraph line.'
+    const res = await strikerAgent.com.atproto.repo.createRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      validate: true,
+      record: {
+        $type: 'site.standard.document',
+        site: 'https://striker.test',
+        title: 'Typography facet round-trip check',
+        publishedAt: new Date().toISOString(),
+        content: {
+          $type: 'at.markpub.markdown',
+          flavor: 'gfm',
+          text: {
+            $type: 'at.markpub.text',
+            markdown,
+            facets: [
+              {
+                $type: 'com.sunnahsky.richtext.facets.blocks',
+                index: { byteStart: 0, byteEnd: 14 },
+                features: [
+                  {
+                    $type: 'com.sunnahsky.richtext.facets.blocks#textAlign',
+                    value: 'center',
+                  },
+                ],
+              },
+              {
+                $type: 'com.sunnahsky.richtext.facets.blocks',
+                index: { byteStart: 15, byteEnd: 38 },
+                features: [
+                  {
+                    $type: 'com.sunnahsky.richtext.facets.blocks#typography',
+                    value: 'arabicParagraph',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    })
+    expect(res.data.validationStatus).toBe('valid')
+
+    const got = await strikerAgent.com.atproto.repo.getRecord({
+      repo: strikerAgent.assertDid,
+      collection: 'site.standard.document',
+      rkey: new AtUri(res.data.uri).rkey,
+    })
+    const value = got.data.value as {
+      content?: { text?: { markdown?: unknown; facets?: unknown[] } }
+    }
+    expect(value.content?.text?.markdown).toBe(markdown)
+    expect(value.content?.text?.facets).toHaveLength(2)
+    expect(value.content?.text?.facets?.[0]).toMatchObject({
+      $type: 'com.sunnahsky.richtext.facets.blocks',
+      index: { byteStart: 0, byteEnd: 14 },
+      features: [
+        {
+          $type: 'com.sunnahsky.richtext.facets.blocks#textAlign',
+          value: 'center',
+        },
+      ],
+    })
+    expect(value.content?.text?.facets?.[1]).toMatchObject({
+      $type: 'com.sunnahsky.richtext.facets.blocks',
+      index: { byteStart: 15, byteEnd: 38 },
+      features: [
+        {
+          $type: 'com.sunnahsky.richtext.facets.blocks#typography',
+          value: 'arabicParagraph',
         },
       ],
     })

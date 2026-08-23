@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "com.sunnahsky.article.draft.deleteDraft",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Deletes an article draft by ID. Requires authentication. THIS IS A TEMPORARY UNSPECCED ROUTE, specific to this fork's article-authoring feature.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "tid"
+            }
+          }
+        }
+      }
+    }
+  }
+}
