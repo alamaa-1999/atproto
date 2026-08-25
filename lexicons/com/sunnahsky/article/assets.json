@@ -1,0 +1,43 @@
+{
+  "lexicon": 1,
+  "id": "com.sunnahsky.article.assets",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "description": "Blob references for images embedded in an article body. Exists solely so those blobs are tethered to the repo: atproto only promotes a blob out of temporary storage when a record field of type blob references it, and an article body carries its images as markdown URLs, not as record fields, so without this record they would never be tethered and com.atproto.sync.getBlob would 404 on them forever. Written atomically alongside the site.standard.document it belongs to, and sharing that document's rkey so it can be located on edit without a scan. THIS IS A TEMPORARY UNSPECCED LEXICON, specific to this fork's article-authoring feature.",
+      "record": {
+        "type": "object",
+        "required": ["document", "images"],
+        "properties": {
+          "document": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The site.standard.document whose body embeds these images."
+          },
+          "images": {
+            "type": "array",
+            "maxLength": 30,
+            "items": {
+              "type": "ref",
+              "ref": "#image"
+            },
+            "description": "Every image still referenced by the document's markdown at the time of writing. Must be complete on every write: a blob dropped from this list is dereferenced and then permanently deleted from the blobstore, so an update that omits an image still present in the body destroys it irrecoverably."
+          }
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "type": "blob",
+          "accept": ["image/*"],
+          "maxSize": 3000000,
+          "description": "Comfortably under the PDS's own 5MB blobUploadLimit. Decimal bytes, matching the convention already used by app.bsky.embed.images and com.sunnahsky.article.draft.defs#draft.coverImage."
+        }
+      }
+    }
+  }
+}

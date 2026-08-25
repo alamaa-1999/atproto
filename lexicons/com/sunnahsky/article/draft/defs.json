@@ -63,6 +63,33 @@
           "accept": ["image/*"],
           "maxSize": 1000000,
           "description": "Image to use for thumbnail or cover image. Less than 1MB in size."
+        },
+        "bodyImages": {
+          "type": "array",
+          "maxLength": 30,
+          "items": {
+            "type": "ref",
+            "ref": "#bodyImage"
+          },
+          "description": "Blob refs for images embedded in the draft body. Stored here because a BlobRef cannot be reconstructed from the CID in a markdown getBlob URL alone - mimeType and size are unreadable for a blob that was never tethered - so without this the refs would not survive closing the composer, and republishing a reopened draft would silently drop its images. Drafts live in private stash and these blobs stay untethered, so they are not publicly enumerable via com.atproto.sync.listBlobs; they are tethered only at publish, into com.sunnahsky.article.assets."
+        }
+      }
+    },
+    "bodyImage": {
+      "type": "object",
+      "description": "One image embedded in a draft body: the blob ref that will be tethered at publish, plus the filename to show while the image itself cannot be rendered.",
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "type": "blob",
+          "accept": ["image/*"],
+          "maxSize": 3000000
+        },
+        "name": {
+          "type": "string",
+          "maxGraphemes": 255,
+          "maxLength": 2550,
+          "description": "Original filename as reported by the picker, shown in the composer's placeholder so the author can tell which image sits where while it cannot be displayed. Display only - never used to construct a path or a URL, and absent when the picker reports no filename. Consumers MUST sanitise before rendering: escape as text rather than markup, and strip Unicode bidi controls."
         }
       }
     },

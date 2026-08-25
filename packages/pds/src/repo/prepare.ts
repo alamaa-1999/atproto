@@ -58,6 +58,7 @@ const knownSchemas = new Map<string, RecordSchema>(
     chat.bsky.actor.declaration.main,
     com.atproto.lexicon.schema.main,
     com.germnetwork.declaration.main,
+    com.sunnahsky.article.assets.main,
     site.standard.document.main,
     site.standard.publication.main,
     // site.standard.theme.basic.main is deliberately NOT registered here:
