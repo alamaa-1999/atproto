@@ -148,6 +148,63 @@ describe('articles', () => {
     )
   })
 
+  // Regression coverage for `com.sunnahsky.article.assets` specifically
+  // (packages/pds/src/api/com/atproto/repo/util.ts's `assertCanWriteRecord`,
+  // added alongside the two `site.standard` collections above). That
+  // function falls through to *allow* any collection it does not name, so
+  // this collection being writable by Catchers is exactly the failure mode
+  // a missing branch would produce silently - the same class of gap this
+  // project has been burned by before when a shared guard's coverage was
+  // assumed per-collection rather than verified. `document` doesn't need to
+  // point at a real record: the role check fires purely off role +
+  // collection before any record lookup, same as the update-document test
+  // above.
+  it('a catcher cannot create an assets record', async () => {
+    await expect(
+      catcherAgent.com.atproto.repo.createRecord({
+        repo: catcherAgent.assertDid,
+        collection: 'com.sunnahsky.article.assets',
+        record: {
+          $type: 'com.sunnahsky.article.assets',
+          document: AtUri.make(
+            catcherAgent.assertDid,
+            'site.standard.document',
+            TID.nextStr(),
+          ).toString(),
+          images: [],
+        },
+      }),
+    ).rejects.toThrow(
+      'Catchers cannot create or edit articles or publications.',
+    )
+  })
+
+  it('a catcher cannot update an assets record via applyWrites', async () => {
+    await expect(
+      catcherAgent.com.atproto.repo.applyWrites({
+        repo: catcherAgent.assertDid,
+        writes: [
+          {
+            $type: 'com.atproto.repo.applyWrites#update',
+            collection: 'com.sunnahsky.article.assets',
+            rkey: TID.nextStr(),
+            value: {
+              $type: 'com.sunnahsky.article.assets',
+              document: AtUri.make(
+                catcherAgent.assertDid,
+                'site.standard.document',
+                TID.nextStr(),
+              ).toString(),
+              images: [],
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      'Catchers cannot create or edit articles or publications.',
+    )
+  })
+
   it('writes a document and its companion post atomically, with a pre-computed bskyPostRef', async () => {
     // The companion post's rkey and CID are computed client-side, before
     // either record is submitted, so the document's bskyPostRef can point
