@@ -860,20 +860,24 @@ describe('account', () => {
       // Same simulate-via-direct-write technique as the idempotency test
       // above, since ensureNoCrossTierNameCollision now blocks this state
       // via normal signup.
-      const catcher = await freshAgent.api.com.atproto.server.createAccount({
+      await freshAgent.api.com.atproto.server.createAccount({
         email: 'collide-catcher@test.com',
         handle: 'legacy-catcher.guest.test',
         password: 'test123',
       })
+      const catcher = await ctx.accountManager.getAccount(
+        'legacy-catcher.guest.test',
+      )
+      if (!catcher) throw new Error('Account not found')
       await ctx.accountManager.db.db
         .updateTable('actor')
         .set({ handle: 'collide-name.guest.test' })
-        .where('did', '=', catcher.data.did)
+        .where('did', '=', catcher.did)
         .execute()
 
       await expect(
         freshAgent.api.com.atproto.admin.promoteAccountToStriker(
-          { account: catcher.data.did },
+          { account: catcher.did },
           {
             headers: network.pds.adminAuthHeaders(),
             encoding: 'application/json',
@@ -1076,12 +1080,16 @@ describe('account', () => {
     })
 
     it('a deactivated Catcher still blocks a new Striker signup on the same base name', async () => {
-      const catcher = await freshAgent.api.com.atproto.server.createAccount({
+      await freshAgent.api.com.atproto.server.createAccount({
         email: 'deactivated-catcher@test.com',
         handle: 'deact-catcher-name.guest.test',
         password: 'test123',
       })
-      await ctx.accountManager.deactivateAccount(catcher.data.did)
+      const catcher = await ctx.accountManager.getAccount(
+        'deact-catcher-name.guest.test',
+      )
+      if (!catcher) throw new Error('Account not found')
+      await ctx.accountManager.deactivateAccount(catcher.did)
 
       await expect(
         freshAgent.api.com.atproto.server.createAccount(
@@ -1176,7 +1184,7 @@ describe('account', () => {
     })
 
     it('excludes a takendown Striker', async () => {
-      const created = await freshAgent.api.com.atproto.server.createAccount(
+      await freshAgent.api.com.atproto.server.createAccount(
         {
           email: 'liststrktd@test.com',
           handle: 'liststrktd.test',
@@ -1188,14 +1196,16 @@ describe('account', () => {
           encoding: 'application/json',
         },
       )
+      const created = await ctx.accountManager.getAccount('liststrktd.test')
+      if (!created) throw new Error('Account not found')
 
-      await ctx.accountManager.takedownAccount(created.data.did, {
+      await ctx.accountManager.takedownAccount(created.did, {
         applied: true,
       })
 
       const res = await freshAgent.api.com.atproto.temp.listStrikers({})
       const dids = res.data.strikers.map((s) => s.did)
-      expect(dids).not.toContain(created.data.did)
+      expect(dids).not.toContain(created.did)
     })
 
     it('succeeds with no auth headers at all', async () => {

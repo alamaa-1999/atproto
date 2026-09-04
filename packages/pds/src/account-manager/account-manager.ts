@@ -290,8 +290,8 @@ export class AccountManager {
   // reachable after ensureHandleMatchesRole has already confirmed this
   // handle's own tier, so `tier` here is never null. If a demotion operation
   // is ever built, it must call this with its own DID excluded (the target
-  // handle's own current handle is exactly what this would otherwise derive
-  // and self-match mid-migration) — not bypass it the way promoteToStriker
+  // account's own current handle is exactly what this would otherwise
+  // derive and self-match mid-migration) — not bypass it the way promoteToStriker
   // safely does, since promotion's vacated handle can only ever match self.
   private async ensureNoCrossTierNameCollision(handle: string): Promise<void> {
     const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
