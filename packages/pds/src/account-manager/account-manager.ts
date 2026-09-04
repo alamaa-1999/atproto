@@ -231,32 +231,84 @@ export class AccountManager {
     )
     if (role) {
       this.ensureHandleMatchesRole(normalized, role)
+      await this.ensureNoCrossTierNameCollision(normalized)
     }
 
     return normalized
   }
 
+  // Splits a handle into its tier and base name. Checked catcher-suffix-first
+  // since ".guest.sunnahsky.com" itself ends with ".sunnahsky.com" - a handle
+  // must never be read as Striker-tier just because it also happens to end
+  // in that shorter suffix. `handle` is nullable because `Actor.handle` is:
+  // an account can transiently have none.
+  private splitHandleTier(handle: string | null): {
+    tier: 'catcher' | 'striker' | null
+    name: string
+  } {
+    const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
+    if (handle?.endsWith(catcherHandleDomain)) {
+      return {
+        tier: 'catcher',
+        name: handle.slice(0, -catcherHandleDomain.length),
+      }
+    }
+    if (handle?.endsWith(strikerHandleDomain)) {
+      return {
+        tier: 'striker',
+        name: handle.slice(0, -strikerHandleDomain.length),
+      }
+    }
+    return { tier: null, name: '' }
+  }
+
   // Catcher handles must live under the "guest" subdomain (visible,
   // intentional labeling — never a bare service-domain handle); Strikers
-  // must use the bare service domain, never the "guest" one. Checked against
-  // catcherHandleDomain first since it's a suffix of strikerHandleDomain
-  // (".guest.sunnahsky.com" also ends with ".sunnahsky.com").
+  // must use the bare service domain, never the "guest" one.
   private ensureHandleMatchesRole(handle: string, role: Role): void {
     const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
-    const isCatcherHandle = handle.endsWith(catcherHandleDomain)
-    const isStrikerHandle =
-      !isCatcherHandle && handle.endsWith(strikerHandleDomain)
+    const { tier } = this.splitHandleTier(handle)
 
-    if (role === 'catcher' && !isCatcherHandle) {
+    if (role === 'catcher' && tier !== 'catcher') {
       throw new InvalidRequestError(
         `Catchers must use a ${catcherHandleDomain} handle`,
         'UnsupportedDomain',
       )
     }
-    if (role === 'striker' && !isStrikerHandle) {
+    if (role === 'striker' && tier !== 'striker') {
       throw new InvalidRequestError(
         `Strikers must use a ${strikerHandleDomain} handle`,
         'UnsupportedDomain',
+      )
+    }
+  }
+
+  // A Catcher and a Striker must never share the same base name — e.g.
+  // "alice.guest.sunnahsky.com" and "alice.sunnahsky.com" both existing at
+  // once implies affiliation/impersonation regardless of which one came
+  // first, so this is checked symmetrically in both directions. Only
+  // reachable after ensureHandleMatchesRole has already confirmed this
+  // handle's own tier, so `tier` here is never null. If a demotion operation
+  // is ever built, it must call this with its own DID excluded (the target
+  // handle's own current handle is exactly what this would otherwise derive
+  // and self-match mid-migration) — not bypass it the way promoteToStriker
+  // safely does, since promotion's vacated handle can only ever match self.
+  private async ensureNoCrossTierNameCollision(handle: string): Promise<void> {
+    const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
+    const { tier, name } = this.splitHandleTier(handle)
+    const otherDomain =
+      tier === 'catcher' ? strikerHandleDomain : catcherHandleDomain
+    const otherTierHandle = `${name}${otherDomain}` as HandleString
+
+    const existing = await this.getAccount(otherTierHandle, {
+      includeDeactivated: true,
+      includeTakenDown: true,
+    })
+    if (existing) {
+      const otherRole = tier === 'catcher' ? 'Striker' : 'Catcher'
+      throw new InvalidRequestError(
+        `Handle already taken by a ${otherRole} account: ${otherTierHandle}`,
+        'HandleNotAvailable',
       )
     }
   }
@@ -468,23 +520,16 @@ export class AccountManager {
     }
 
     const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
-
-    // catcherHandleDomain ('.guest.test') itself ends with strikerHandleDomain
-    // ('.test') — same suffix-overlap this fork already guards against in
-    // ensureHandleMatchesRole(). Check the Catcher suffix first so an
-    // untouched Catcher handle never false-positives as "already migrated".
-    const isCatcherHandle = account.handle?.endsWith(catcherHandleDomain)
-    const isAlreadyStrikerHandle =
-      !isCatcherHandle && account.handle?.endsWith(strikerHandleDomain)
+    const { tier, name } = this.splitHandleTier(account.handle)
 
     // Idempotent: if a prior attempt already migrated the handle but failed
     // before the role flip, don't try to re-derive/re-migrate — just proceed
     // to the role flip below.
     let handle: HandleString
-    if (isAlreadyStrikerHandle) {
+    if (tier === 'striker') {
       handle = account.handle as HandleString
     } else {
-      if (!isCatcherHandle || !account.handle) {
+      if (tier !== 'catcher') {
         // Defensive: should be unreachable given `ensureHandleMatchesRole` is
         // enforced everywhere a Catcher's handle can be set, but don't derive
         // a nonsense handle from an assumption that's suddenly false.
@@ -492,7 +537,6 @@ export class AccountManager {
           `Account's current handle (${account.handle}) does not match the expected Catcher domain (${catcherHandleDomain}) — refusing to guess a new handle`,
         )
       }
-      const name = account.handle.slice(0, -catcherHandleDomain.length)
       const newHandle = `${name}${strikerHandleDomain}` as HandleString
 
       this.ensureHandleMatchesRole(newHandle, 'striker')

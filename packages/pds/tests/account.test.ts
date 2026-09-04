@@ -857,11 +857,19 @@ describe('account', () => {
         },
       )
 
+      // Same simulate-via-direct-write technique as the idempotency test
+      // above, since ensureNoCrossTierNameCollision now blocks this state
+      // via normal signup.
       const catcher = await freshAgent.api.com.atproto.server.createAccount({
         email: 'collide-catcher@test.com',
-        handle: 'collide-name.guest.test',
+        handle: 'legacy-catcher.guest.test',
         password: 'test123',
       })
+      await ctx.accountManager.db.db
+        .updateTable('actor')
+        .set({ handle: 'collide-name.guest.test' })
+        .where('did', '=', catcher.data.did)
+        .execute()
 
       await expect(
         freshAgent.api.com.atproto.admin.promoteAccountToStriker(
@@ -965,6 +973,152 @@ describe('account', () => {
           password: 'test123',
         }),
       ).resolves.toBeDefined()
+    })
+  })
+
+  describe('cross-tier handle collision', () => {
+    let freshAgent: AtpAgent
+
+    beforeAll(() => {
+      freshAgent = network.pds.getAgent()
+    })
+
+    it('rejects a new Catcher signup when the base name already exists as a Striker', async () => {
+      await freshAgent.api.com.atproto.server.createAccount(
+        {
+          email: 'cross-tier-1@test.com',
+          handle: 'cross-tier-1.test',
+          password: 'test123',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      await expect(
+        freshAgent.api.com.atproto.server.createAccount({
+          email: 'cross-tier-1-catcher@test.com',
+          handle: 'cross-tier-1.guest.test',
+          password: 'test123',
+        }),
+      ).rejects.toThrow('Handle already taken by a Striker account')
+    })
+
+    it('rejects a new Striker signup when the base name already exists as a Catcher', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'cross-tier-2-catcher@test.com',
+        handle: 'cross-tier-2.guest.test',
+        password: 'test123',
+      })
+
+      await expect(
+        freshAgent.api.com.atproto.server.createAccount(
+          {
+            email: 'cross-tier-2@test.com',
+            handle: 'cross-tier-2.test',
+            password: 'test123',
+            role: 'striker',
+          },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).rejects.toThrow('Handle already taken by a Catcher account')
+    })
+
+    it('allows two accounts with genuinely different base names on each tier', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'distinct-catcher@test.com',
+        handle: 'distinct-catcher.guest.test',
+        password: 'test123',
+      })
+
+      await expect(
+        freshAgent.api.com.atproto.server.createAccount(
+          {
+            email: 'distinct-striker@test.com',
+            handle: 'distinct-striker.test',
+            password: 'test123',
+            role: 'striker',
+          },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).resolves.toBeDefined()
+    })
+
+    it('still allows a Catcher to be promoted to Striker end to end', async () => {
+      await freshAgent.api.com.atproto.server.createAccount({
+        email: 'promote-regression@test.com',
+        handle: 'promote-regression.guest.test',
+        password: 'test123',
+      })
+
+      const promoted =
+        await freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+          { account: 'promote-regression.guest.test' },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        )
+
+      expect(promoted.data.handle).toBe('promote-regression.test')
+      const account = await ctx.accountManager.getAccount(
+        'promote-regression.test',
+      )
+      expect(account?.role).toBe('striker')
+    })
+
+    it('a deactivated Catcher still blocks a new Striker signup on the same base name', async () => {
+      const catcher = await freshAgent.api.com.atproto.server.createAccount({
+        email: 'deactivated-catcher@test.com',
+        handle: 'deact-catcher-name.guest.test',
+        password: 'test123',
+      })
+      await ctx.accountManager.deactivateAccount(catcher.data.did)
+
+      await expect(
+        freshAgent.api.com.atproto.server.createAccount(
+          {
+            email: 'deactivated-catcher-striker@test.com',
+            handle: 'deact-catcher-name.test',
+            password: 'test123',
+            role: 'striker',
+          },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).rejects.toThrow('Handle already taken by a Catcher account')
+    })
+
+    it('rejects a Striker signup with base name "foo.guest" (the domain-overlap edge case)', async () => {
+      // ensureHandleMatchesRole's catcher-suffix-first check is the only
+      // thing that catches this - the reserved-handle list checks a
+      // different string ("foo", not "guest") for this exact input, since
+      // the catcher domain matches first and "guest" never becomes the
+      // checked front segment.
+      await expect(
+        freshAgent.api.com.atproto.server.createAccount(
+          {
+            email: 'foo-guest-edge@test.com',
+            handle: 'foo.guest.test',
+            password: 'test123',
+            role: 'striker',
+          },
+          {
+            headers: network.pds.adminAuthHeaders(),
+            encoding: 'application/json',
+          },
+        ),
+      ).rejects.toThrow('Strikers must use a .test handle')
     })
   })
 
