@@ -3,9 +3,28 @@ import { TID, cidForCbor } from '@atproto/common'
 import { TestNetworkNoAppView } from '@atproto/dev-env'
 import { AtUri } from '@atproto/syntax'
 
+// `PDS_APP_URL` in dev-env's builder (packages/dev-env/src/pds.ts) - the
+// server-side write guard below (assertCanWriteRecord,
+// packages/pds/src/api/com/atproto/repo/util.ts) validates every Striker
+// publication/document write against this exactly, per "PDS hostname move
+// and public URL scheme".
+const APP_URL = 'https://sunnahsky.com'
+
+// Dev-env's Striker handle domain is `.test` (serviceHandleDomains), so a
+// handle's canonical name segment is everything before that suffix.
+const canonicalUrl = (handle: string) =>
+  `${APP_URL}/${handle.replace(/\.test$/, '')}`
+const publicationSelfUri = (did: string) =>
+  `at://${did}/site.standard.publication/self`
+// TID's base32 alphabet is already `[a-z0-9-]`-safe (no `-` actually, but
+// entirely `[a-z2-7]`), so a fresh one always satisfies the guard's path
+// regex without needing per-test bookkeeping.
+const freshArticlePath = () => `/article/${TID.nextStr()}`
+
 describe('articles', () => {
   let network: TestNetworkNoAppView
   let strikerAgent: AtpAgent
+  let striker2Agent: AtpAgent
   let catcherAgent: AtpAgent
 
   beforeAll(async () => {
@@ -13,6 +32,7 @@ describe('articles', () => {
       dbPostgresSchema: 'articles',
     })
     strikerAgent = network.pds.getAgent()
+    striker2Agent = network.pds.getAgent()
     catcherAgent = network.pds.getAgent()
 
     await strikerAgent.createAccount(
@@ -20,6 +40,20 @@ describe('articles', () => {
         email: 'striker@test.com',
         handle: 'striker.test',
         password: 'striker-pass',
+        role: 'striker',
+      },
+      { headers: network.pds.adminAuthHeaders(), encoding: 'application/json' },
+    )
+
+    // A second, independent Striker - needed to prove the guard rejects a
+    // publication.url naming *another* real account's canonical segment,
+    // and a document.site pointing at *another* account's publication, not
+    // just a made-up host.
+    await striker2Agent.createAccount(
+      {
+        email: 'striker2@test.com',
+        handle: 'striker2.test',
+        password: 'striker2-pass',
         role: 'striker',
       },
       { headers: network.pds.adminAuthHeaders(), encoding: 'application/json' },
@@ -36,13 +70,13 @@ describe('articles', () => {
     await network?.close()
   })
 
-  it('a striker can create a publication', async () => {
+  it('a striker can create a publication with their own canonical url', async () => {
     const res = await strikerAgent.com.atproto.repo.createRecord({
       repo: strikerAgent.assertDid,
       collection: 'site.standard.publication',
       record: {
         $type: 'site.standard.publication',
-        url: 'https://striker.test',
+        url: canonicalUrl('striker.test'),
         name: "Striker's Publication",
       },
     })
@@ -54,20 +88,22 @@ describe('articles', () => {
       rkey: new AtUri(res.data.uri).rkey,
     })
     expect(got.data.value).toMatchObject({
-      url: 'https://striker.test',
+      url: canonicalUrl('striker.test'),
       name: "Striker's Publication",
     })
   })
 
-  it('a striker can create a document', async () => {
+  it('a striker can create a document pointing at their own publication', async () => {
+    const path = freshArticlePath()
     const res = await strikerAgent.com.atproto.repo.createRecord({
       repo: strikerAgent.assertDid,
       collection: 'site.standard.document',
       record: {
         $type: 'site.standard.document',
-        site: 'https://striker.test',
+        site: publicationSelfUri(strikerAgent.assertDid),
         title: 'My First Article',
         publishedAt: new Date().toISOString(),
+        path,
       },
     })
     expect(res.data.uri).toBeDefined()
@@ -78,8 +114,243 @@ describe('articles', () => {
       rkey: new AtUri(res.data.uri).rkey,
     })
     expect(got.data.value).toMatchObject({
-      site: 'https://striker.test',
+      site: publicationSelfUri(strikerAgent.assertDid),
       title: 'My First Article',
+      path,
+    })
+  })
+
+  // "PDS hostname move and public URL scheme" - the write guard
+  // (assertCanWriteRecord) content checks, added so publication.url and
+  // document.site/path are server-enforced, not merely client-trusted.
+  describe('publication/document url guard', () => {
+    it('rejects a publication url pointing off-platform', async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.createRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'site.standard.publication',
+          record: {
+            $type: 'site.standard.publication',
+            url: 'https://evil.example/x',
+            name: 'Phishing attempt',
+          },
+        }),
+      ).rejects.toThrow(
+        "Publication url must be this account's canonical Sunnahsky URL",
+      )
+    })
+
+    it("rejects a publication url naming another Striker's own segment", async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.createRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'site.standard.publication',
+          record: {
+            $type: 'site.standard.publication',
+            url: canonicalUrl('striker2.test'),
+            name: 'Impersonation attempt',
+          },
+        }),
+      ).rejects.toThrow(
+        "Publication url must be this account's canonical Sunnahsky URL",
+      )
+    })
+
+    it('accepts the correct canonical publication url', async () => {
+      const res = await strikerAgent.com.atproto.repo.applyWrites({
+        repo: strikerAgent.assertDid,
+        writes: [
+          {
+            $type: 'com.atproto.repo.applyWrites#create',
+            collection: 'site.standard.publication',
+            rkey: TID.nextStr(),
+            value: {
+              $type: 'site.standard.publication',
+              url: canonicalUrl('striker.test'),
+              name: 'Correct url check',
+            },
+          },
+        ],
+      })
+      expect(res.data.results).toHaveLength(1)
+    })
+
+    it("rejects a document whose site points at another account's publication", async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.createRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'site.standard.document',
+          record: {
+            $type: 'site.standard.document',
+            site: publicationSelfUri(striker2Agent.assertDid),
+            title: 'Cross-account impersonation attempt',
+            publishedAt: new Date().toISOString(),
+            path: freshArticlePath(),
+          },
+        }),
+      ).rejects.toThrow("Document site must be this account's own publication")
+    })
+
+    it('rejects a document path outside /article/{slug}', async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.createRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'site.standard.document',
+          record: {
+            $type: 'site.standard.document',
+            site: publicationSelfUri(strikerAgent.assertDid),
+            title: 'Bad path check',
+            publishedAt: new Date().toISOString(),
+            path: `/article/${strikerAgent.assertDid}/3abc`,
+          },
+        }),
+      ).rejects.toThrow('Document path must match /article/{slug}')
+    })
+
+    it('rejects a document with no path at all', async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.createRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'site.standard.document',
+          record: {
+            $type: 'site.standard.document',
+            site: publicationSelfUri(strikerAgent.assertDid),
+            title: 'Missing path check',
+            publishedAt: new Date().toISOString(),
+          },
+        }),
+      ).rejects.toThrow('Document path must match /article/{slug}')
+    })
+
+    it('applies the same content checks to applyWrites#update, not just create', async () => {
+      const pubRkey = TID.nextStr()
+      await strikerAgent.com.atproto.repo.createRecord({
+        repo: strikerAgent.assertDid,
+        collection: 'site.standard.publication',
+        rkey: pubRkey,
+        record: {
+          $type: 'site.standard.publication',
+          url: canonicalUrl('striker.test'),
+          name: 'Update-path check',
+        },
+      })
+
+      await expect(
+        strikerAgent.com.atproto.repo.applyWrites({
+          repo: strikerAgent.assertDid,
+          writes: [
+            {
+              $type: 'com.atproto.repo.applyWrites#update',
+              collection: 'site.standard.publication',
+              rkey: pubRkey,
+              value: {
+                $type: 'site.standard.publication',
+                url: 'https://evil.example/renamed',
+                name: 'Update-path check, renamed',
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        "Publication url must be this account's canonical Sunnahsky URL",
+      )
+
+      const docRkey = TID.nextStr()
+      await strikerAgent.com.atproto.repo.createRecord({
+        repo: strikerAgent.assertDid,
+        collection: 'site.standard.document',
+        rkey: docRkey,
+        record: {
+          $type: 'site.standard.document',
+          site: publicationSelfUri(strikerAgent.assertDid),
+          title: 'Document update-path check',
+          publishedAt: new Date().toISOString(),
+          path: freshArticlePath(),
+        },
+      })
+
+      await expect(
+        strikerAgent.com.atproto.repo.applyWrites({
+          repo: strikerAgent.assertDid,
+          writes: [
+            {
+              $type: 'com.atproto.repo.applyWrites#update',
+              collection: 'site.standard.document',
+              rkey: docRkey,
+              value: {
+                $type: 'site.standard.document',
+                site: publicationSelfUri(striker2Agent.assertDid),
+                title: 'Document update-path check, retargeted',
+                publishedAt: new Date().toISOString(),
+                path: freshArticlePath(),
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow("Document site must be this account's own publication")
+    })
+
+    // A Catcher's write is rejected by the role gate before the content
+    // checks above ever run - the two error identities must not compete for
+    // the same write (third review, point 5). Record content here is
+    // deliberately invalid by the content-check rules too (off-platform
+    // url), so a pass here that returned InvalidPublicationUrl instead of
+    // CatcherArticleWriteNotAllowed would mean the ordering regressed.
+    it('rejects a Catcher before ever reaching the content checks', async () => {
+      await expect(
+        catcherAgent.com.atproto.repo.createRecord({
+          repo: catcherAgent.assertDid,
+          collection: 'site.standard.publication',
+          record: {
+            $type: 'site.standard.publication',
+            url: 'https://evil.example/also-not-allowed',
+            name: "Catcher's Publication",
+          },
+        }),
+      ).rejects.toThrow(
+        'Catchers cannot create or edit articles or publications.',
+      )
+    })
+
+    // An account can transiently have no handle (Actor.handle is
+    // HandleString | null) - the guard must reject rather than crash on
+    // `canonicalNameSegment(null)`. No supported API sets a handle to null,
+    // so this reaches directly into the account DB, the same class of
+    // direct-DB-access this project's own test suite already uses when the
+    // public API has no path to a given state.
+    it('rejects a publication write from an account with no handle', async () => {
+      const nullHandleAgent = network.pds.getAgent()
+      await nullHandleAgent.createAccount(
+        {
+          email: 'nullhandle@test.com',
+          handle: 'nullhandle.test',
+          password: 'nullhandle-pass',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+      await network.pds.ctx.accountManager.db.db
+        .updateTable('actor')
+        .set({ handle: null })
+        .where('did', '=', nullHandleAgent.assertDid)
+        .execute()
+
+      await expect(
+        nullHandleAgent.com.atproto.repo.createRecord({
+          repo: nullHandleAgent.assertDid,
+          collection: 'site.standard.publication',
+          record: {
+            $type: 'site.standard.publication',
+            url: canonicalUrl('nullhandle.test'),
+            name: "Null-handle account's publication",
+          },
+        }),
+      ).rejects.toThrow(
+        'Cannot write a publication without a registered handle',
+      )
     })
   })
 
@@ -227,7 +498,8 @@ describe('articles', () => {
 
     const documentRecord = {
       $type: 'site.standard.document',
-      site: 'https://striker.test',
+      site: publicationSelfUri(strikerAgent.assertDid),
+      path: freshArticlePath(),
       title: 'My Atomic Article',
       publishedAt: new Date().toISOString(),
       bskyPostRef: {
@@ -289,7 +561,12 @@ describe('articles', () => {
         validate: true,
         record: {
           $type: 'site.standard.document',
-          title: 'Missing required site and publishedAt fields',
+          // site/path are valid (satisfying the write guard) so the
+          // rejection below is provably the lexicon's, for the still-missing
+          // required field `publishedAt` - not the guard's own content check.
+          site: publicationSelfUri(strikerAgent.assertDid),
+          path: freshArticlePath(),
+          title: 'Missing required publishedAt field',
         },
       }),
     ).rejects.toThrow(/Invalid site\.standard\.document record/)
@@ -301,7 +578,8 @@ describe('articles', () => {
       collection: 'site.standard.document',
       record: {
         $type: 'site.standard.document',
-        site: 'https://striker.test',
+        site: publicationSelfUri(strikerAgent.assertDid),
+        path: freshArticlePath(),
         title: 'Validation status check',
         publishedAt: new Date().toISOString(),
       },
@@ -322,7 +600,8 @@ describe('articles', () => {
       validate: true,
       record: {
         $type: 'site.standard.document',
-        site: 'https://striker.test',
+        site: publicationSelfUri(strikerAgent.assertDid),
+        path: freshArticlePath(),
         title: 'Category extension field check',
         publishedAt: new Date().toISOString(),
         category: 'fiqh',
@@ -353,7 +632,8 @@ describe('articles', () => {
       validate: true,
       record: {
         $type: 'site.standard.document',
-        site: 'https://striker.test',
+        site: publicationSelfUri(strikerAgent.assertDid),
+        path: freshArticlePath(),
         title: 'Author/translator extension field check',
         publishedAt: new Date().toISOString(),
         author: 'Imam Ahmad ibn Hanbal',
@@ -385,7 +665,8 @@ describe('articles', () => {
       validate: true,
       record: {
         $type: 'site.standard.document',
-        site: 'https://striker.test',
+        site: publicationSelfUri(strikerAgent.assertDid),
+        path: freshArticlePath(),
         title: 'Multi-select author/translator/category extension field check',
         publishedAt: new Date().toISOString(),
         authors: ['Imam Ahmad ibn Hanbal'],
@@ -427,7 +708,8 @@ describe('articles', () => {
       validate: true,
       record: {
         $type: 'site.standard.document',
-        site: 'https://striker.test',
+        site: publicationSelfUri(strikerAgent.assertDid),
+        path: freshArticlePath(),
         title: 'Content lexicon round-trip check',
         publishedAt: new Date().toISOString(),
         content: {
@@ -516,7 +798,8 @@ describe('articles', () => {
       validate: true,
       record: {
         $type: 'site.standard.document',
-        site: 'https://striker.test',
+        site: publicationSelfUri(strikerAgent.assertDid),
+        path: freshArticlePath(),
         title: 'Typography facet round-trip check',
         publishedAt: new Date().toISOString(),
         content: {

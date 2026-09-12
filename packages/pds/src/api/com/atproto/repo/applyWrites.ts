@@ -128,7 +128,12 @@ export default function (server: Server, ctx: AppContext) {
         preparedWrites = await Promise.all(
           writes.map(async (write, i) => {
             if (com.atproto.repo.applyWrites.create.$isTypeOf(write)) {
-              assertCanWriteRecord(account.role, write.collection, write.value)
+              assertCanWriteRecord(
+                account,
+                write.collection,
+                write.value,
+                ctx.cfg,
+              )
               return prepareCreate({
                 did,
                 collection: write.collection,
@@ -138,7 +143,12 @@ export default function (server: Server, ctx: AppContext) {
                 validationPath: ['writes', i, 'record'],
               })
             } else if (com.atproto.repo.applyWrites.update.$isTypeOf(write)) {
-              assertCanWriteRecord(account.role, write.collection, write.value)
+              assertCanWriteRecord(
+                account,
+                write.collection,
+                write.value,
+                ctx.cfg,
+              )
               return prepareUpdate({
                 did,
                 collection: write.collection,

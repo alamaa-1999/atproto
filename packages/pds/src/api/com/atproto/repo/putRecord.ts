@@ -78,7 +78,7 @@ export default function (server: Server, ctx: AppContext) {
         throw new AuthRequiredError()
       }
 
-      assertCanWriteRecord(account.role, collection, record)
+      assertCanWriteRecord(account, collection, record, ctx.cfg)
 
       // We can't compute permissions based on the request payload ("input") in
       // the 'auth' phase, so we do it here.

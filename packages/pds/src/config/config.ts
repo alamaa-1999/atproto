@@ -27,10 +27,28 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     throw new Error(`Invalid service DID: ${did}`)
   }
 
+  /**
+   * The public web app's origin - distinct from `publicUrl` (the PDS's own
+   * protocol endpoint) since "PDS hostname move and public URL scheme" moves
+   * the two onto different hosts (`pds.sunnahsky.com` vs the apex). Cannot be
+   * derived from `hostname` any more, and this project's naming rule forbids
+   * hardcoding a hostname here - so it fails closed rather than silently
+   * defaulting, matching every other secret/URL config in this file. `dev-env`
+   * sets this explicitly (see `packages/dev-env/src/pds.ts`), so any test that
+   * exercises the article write guard already gets a real value.
+   */
+  if (!env.appUrl && hostname !== 'localhost') {
+    throw new Error(
+      'PDS_APP_URL must be set (the public web app origin, e.g. https://sunnahsky.com)',
+    )
+  }
+  const appUrl = env.appUrl ?? `http://localhost:${port}`
+
   const serviceCfg: ServerConfig['service'] = {
     port,
     hostname,
     publicUrl,
+    appUrl,
     did,
     version: env.version || pkg.version,
     privacyPolicyUrl: env.privacyPolicyUrl,
@@ -410,6 +428,8 @@ export type ServiceConfig = {
   port: number
   hostname: string
   publicUrl: string
+  /** The public web app's origin - see the fail-closed computation in `envToCfg`. */
+  appUrl: string
   did: DidString
   version: string
   privacyPolicyUrl?: string

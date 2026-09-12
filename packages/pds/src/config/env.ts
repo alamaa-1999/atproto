@@ -5,6 +5,7 @@ export function readEnv() {
     // service
     port: envInt('PDS_PORT'),
     hostname: envStr('PDS_HOSTNAME'),
+    appUrl: envStr('PDS_APP_URL'),
     serviceDid: envStr('PDS_SERVICE_DID'),
     serviceName: envStr('PDS_SERVICE_NAME'),
     version: envStr('PDS_VERSION'),

@@ -62,7 +62,7 @@ export default function (server: Server, ctx: AppContext) {
         throw new AuthRequiredError()
       }
 
-      assertCanWriteRecord(account.role, collection, record)
+      assertCanWriteRecord(account, collection, record, ctx.cfg)
 
       if (auth.credentials.type === 'oauth') {
         auth.credentials.permissions.assertRepo({

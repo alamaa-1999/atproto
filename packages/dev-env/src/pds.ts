@@ -40,6 +40,7 @@ export class TestPds {
       // @NOTE ".example" will not actually work and is only used to display
       // multiple domains in the sing-up UI
       serviceHandleDomains: ['.test', '.example'],
+      appUrl: 'https://sunnahsky.com',
       bskyAppViewUrl: 'https://appview.invalid',
       bskyAppViewDid: 'did:example:invalid',
       bskyAppViewCdnUrlPattern: 'http://cdn.appview.com/%s/%s/%s',
