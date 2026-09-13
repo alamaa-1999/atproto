@@ -42,7 +42,26 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
       'PDS_APP_URL must be set (the public web app origin, e.g. https://sunnahsky.com)',
     )
   }
-  const appUrl = env.appUrl ?? `http://localhost:${port}`
+  // Validated, not just present: the write guard compares this verbatim
+  // against a client-supplied `publication.url`, so a malformed value
+  // (a trailing slash, in particular) would silently reject every
+  // Striker's publish rather than just failing to start (security
+  // review, finding 3).
+  let appUrl = env.appUrl ?? `http://localhost:${port}`
+  if (env.appUrl) {
+    let parsed: URL
+    try {
+      parsed = new URL(env.appUrl)
+    } catch {
+      throw new Error(`PDS_APP_URL must be a valid URL: ${env.appUrl}`)
+    }
+    if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
+      throw new Error(
+        `PDS_APP_URL must be an origin with no path, query, or fragment: ${env.appUrl}`,
+      )
+    }
+    appUrl = parsed.origin
+  }
 
   const serviceCfg: ServerConfig['service'] = {
     port,

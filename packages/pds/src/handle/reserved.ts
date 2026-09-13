@@ -1070,15 +1070,12 @@ const sunnahskyRoutes = [
  * once its real owner's account is recreated; do not let this list grow
  * into a second reserved-word mechanism.
  *
- * TODO(owner): confirm the full set before the plan's Step 1 account
- * deletion runs. `abdullahawalam` is the project owner's own handle,
- * confirmed. `abukhadeejahsp` is included provisionally - it currently
- * exists as an empty-shell Striker account (no posts, no display name;
- * see HANDOFF.md's 2026-09-12 Striker inventory) and its name reads as
- * reserved for a real scholar rather than a throwaway, but this has not
- * been confirmed with the owner. `testingpromotion` is NOT held here -
- * nothing marks it as anything but a throwaway test account, also per
- * that inventory - confirm before treating it as disposable.
+ * Both names owner-confirmed. `abdullahawalam` is the project owner's own
+ * handle. `abukhadeejahsp` is held for a real scholar, not a throwaway,
+ * despite currently existing only as an empty-shell Striker account (no
+ * posts, no display name). `abuukkashahtest` and `testingpromotion` are
+ * NOT held here - both are confirmed throwaway test accounts, slated for
+ * deletion rather than recreation (see HANDOFF.md).
  */
 const sunnahskyHeldHandles = ['abdullahawalam', 'abukhadeejahsp']
 

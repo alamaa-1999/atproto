@@ -23,8 +23,13 @@ const canonicalNameSegment = (
 ): string => {
   if (!handle.endsWith(strikerHandleDomain)) {
     // Cannot happen for a genuine Striker handle (ensureHandleMatchesRole
-    // guarantees the suffix at signup/rename) - defensive only.
-    return `/${handle}`
+    // guarantees the suffix at signup/rename), so this is inconsistent
+    // account state - fail closed rather than guess a URL segment from
+    // the raw handle (security review, finding 4).
+    throw new InvalidRequestError(
+      "Cannot compute canonical URL: account's handle does not match the expected Striker domain",
+      'InvalidPublicationUrl',
+    )
   }
   return `/${handle.slice(0, -strikerHandleDomain.length)}`
 }
