@@ -1,44 +1,20 @@
 import type { AtIdentifierString } from '@atproto/lex'
 import { PDS, httpLogger } from '@atproto/pds'
+// `.ts`, not `.js`: this directory is executed by Node's own type stripping
+// (Dockerfile CMD runs `node index.ts`), which resolves specifiers as
+// written and does not rewrite a `.js` suffix to the `.ts` file on disk.
+import { PerDomainIssuanceRateLimiter } from './tls-check-rate-limiter.ts'
 
 // Infrastructure subdomains that should get a certificate but aren't and
 // never will be account handles - not covered by the account-handle lookup
 // below, so listed explicitly rather than bypassing that check.
 const ADDITIONAL_APPROVED_DOMAINS = new Set(['app.sunnahsky.com'])
 
-/**
- * Caddy's own on_demand_tls "interval"/"burst" rate limiter was removed in
- * Caddy 2.9+ in favour of a "permission" module - this ask endpoint already
- * functions as one, so the same throttle (5 issuances per 2 minutes) is
- * reimplemented here rather than left dropped entirely ("PDS hostname move
- * and public URL scheme", Caddyfile validation). Global, not per-domain: a
- * burst of asks for many distinct *valid* handles is exactly the case the
- * per-domain check below cannot catch on its own, and every approval here
- * triggers a real Let's Encrypt issuance - the actual resource this paces
- * out. In-memory and per-process, matching Caddy's own former behaviour
- * (also in-memory, also reset on restart).
- */
-class IssuanceRateLimiter {
-  private approvalTimestamps: number[] = []
-
-  constructor(
-    private readonly burst: number,
-    private readonly intervalMs: number,
-  ) {}
-
-  tryApprove(now = Date.now()): boolean {
-    this.approvalTimestamps = this.approvalTimestamps.filter(
-      (ts) => now - ts < this.intervalMs,
-    )
-    if (this.approvalTimestamps.length >= this.burst) {
-      return false
-    }
-    this.approvalTimestamps.push(now)
-    return true
-  }
-}
-
-const issuanceRateLimiter = new IssuanceRateLimiter(5, 2 * 60 * 1000)
+// Caddy 2.9+ removed on_demand_tls's own "interval"/"burst" option, so the
+// ask endpoint below carries its own limiter. Per-domain, 5 approvals per
+// hostname per hour (Let's Encrypt's failed-validation limit) - see the
+// class doc for why a global cap is the wrong shape here.
+const issuanceRateLimiter = new PerDomainIssuanceRateLimiter(5, 60 * 60 * 1000)
 
 void PDS.run({
   onCreated: (pds) => {
@@ -49,6 +25,22 @@ void PDS.run({
     // @atproto/pds itself.
     pds.app.get('/tls-check', async (req, res) => {
       try {
+        // Caddy calls this route directly on localhost:3000, never through
+        // its own reverse_proxy - so a genuine ask carries no
+        // X-Forwarded-For, while every request that arrived via a public
+        // site block does (Caddy adds the header on proxying). Refuse the
+        // proxied form: this endpoint answers "does this hostname get a
+        // certificate", and with a limiter behind it a public caller could
+        // otherwise spend a real hostname's approval budget on purpose. The
+        // Caddyfile also declines to proxy /tls-check on pds.sunnahsky.com;
+        // this is the backstop for the config drifting.
+        if (req.headers['x-forwarded-for'] !== undefined) {
+          return res.status(404).json({
+            error: 'NotFound',
+            message: 'Not Found',
+          })
+        }
+
         const { domain } = req.query
         if (!domain || typeof domain !== 'string') {
           return res.status(400).json({
@@ -58,11 +50,11 @@ void PDS.run({
         }
 
         const approve = () => {
-          if (!issuanceRateLimiter.tryApprove()) {
+          if (!issuanceRateLimiter.tryApprove(domain)) {
             return res.status(429).json({
               error: 'TooManyRequests',
               message:
-                'certificate issuance rate limit exceeded, try again shortly',
+                'certificate issuance rate limit exceeded for this hostname, try again later',
             })
           }
           return res.json({ success: true })

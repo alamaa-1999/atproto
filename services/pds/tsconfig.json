@@ -6,5 +6,9 @@
   "compilerOptions": {
     "rootDir": "./",
     "noEmit": true,
+    // This directory is run by Node directly (`node index.ts`, see the
+    // Dockerfile CMD) with no compile step, so a sibling import must name
+    // the `.ts` file that actually exists on disk.
+    "allowImportingTsExtensions": true,
   },
 }
