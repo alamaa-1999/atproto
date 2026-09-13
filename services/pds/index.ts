@@ -6,6 +6,40 @@ import { PDS, httpLogger } from '@atproto/pds'
 // below, so listed explicitly rather than bypassing that check.
 const ADDITIONAL_APPROVED_DOMAINS = new Set(['app.sunnahsky.com'])
 
+/**
+ * Caddy's own on_demand_tls "interval"/"burst" rate limiter was removed in
+ * Caddy 2.9+ in favour of a "permission" module - this ask endpoint already
+ * functions as one, so the same throttle (5 issuances per 2 minutes) is
+ * reimplemented here rather than left dropped entirely ("PDS hostname move
+ * and public URL scheme", Caddyfile validation). Global, not per-domain: a
+ * burst of asks for many distinct *valid* handles is exactly the case the
+ * per-domain check below cannot catch on its own, and every approval here
+ * triggers a real Let's Encrypt issuance - the actual resource this paces
+ * out. In-memory and per-process, matching Caddy's own former behaviour
+ * (also in-memory, also reset on restart).
+ */
+class IssuanceRateLimiter {
+  private approvalTimestamps: number[] = []
+
+  constructor(
+    private readonly burst: number,
+    private readonly intervalMs: number,
+  ) {}
+
+  tryApprove(now = Date.now()): boolean {
+    this.approvalTimestamps = this.approvalTimestamps.filter(
+      (ts) => now - ts < this.intervalMs,
+    )
+    if (this.approvalTimestamps.length >= this.burst) {
+      return false
+    }
+    this.approvalTimestamps.push(now)
+    return true
+  }
+}
+
+const issuanceRateLimiter = new IssuanceRateLimiter(5, 2 * 60 * 1000)
+
 void PDS.run({
   onCreated: (pds) => {
     // Caddy's on_demand_tls "ask" callback: approves or denies certificate
@@ -22,11 +56,23 @@ void PDS.run({
             message: 'bad or missing domain query param',
           })
         }
+
+        const approve = () => {
+          if (!issuanceRateLimiter.tryApprove()) {
+            return res.status(429).json({
+              error: 'TooManyRequests',
+              message:
+                'certificate issuance rate limit exceeded, try again shortly',
+            })
+          }
+          return res.json({ success: true })
+        }
+
         if (
           domain === pds.ctx.cfg.service.hostname ||
           ADDITIONAL_APPROVED_DOMAINS.has(domain)
         ) {
-          return res.json({ success: true })
+          return approve()
         }
         const isHostedHandle = pds.ctx.cfg.identity.serviceHandleDomains.find(
           (avail) => domain.endsWith(avail),
@@ -46,7 +92,7 @@ void PDS.run({
             message: 'handle not found for this domain',
           })
         }
-        return res.json({ success: true })
+        return approve()
       } catch (err) {
         httpLogger.error({ err }, 'tls-check failed')
         return res.status(500).json({
