@@ -74,6 +74,10 @@ describe('articles', () => {
     const res = await strikerAgent.com.atproto.repo.createRecord({
       repo: strikerAgent.assertDid,
       collection: 'site.standard.publication',
+      // literal:self, not a TID (lexicons/site/standard/publication.json) -
+      // one publication per account, enforced at the record-key level, not
+      // merely by app convention.
+      rkey: 'self',
       record: {
         $type: 'site.standard.publication',
         url: canonicalUrl('striker.test'),
@@ -157,13 +161,18 @@ describe('articles', () => {
     })
 
     it('accepts the correct canonical publication url', async () => {
+      // #update, not #create: strikerAgent already has a publication at
+      // rkey 'self' by this point in the file (one per account, literal:self
+      // - see the top-level "can create a publication" test above), so this
+      // exercises the guard's acceptance path via the write shape that's
+      // actually reachable a second time onward.
       const res = await strikerAgent.com.atproto.repo.applyWrites({
         repo: strikerAgent.assertDid,
         writes: [
           {
-            $type: 'com.atproto.repo.applyWrites#create',
+            $type: 'com.atproto.repo.applyWrites#update',
             collection: 'site.standard.publication',
-            rkey: TID.nextStr(),
+            rkey: 'self',
             value: {
               $type: 'site.standard.publication',
               url: canonicalUrl('striker.test'),
@@ -223,11 +232,15 @@ describe('articles', () => {
     })
 
     it('applies the same content checks to applyWrites#update, not just create', async () => {
-      const pubRkey = TID.nextStr()
-      await strikerAgent.com.atproto.repo.createRecord({
+      // putRecord (create-or-replace), not createRecord: strikerAgent may
+      // already have a publication at rkey 'self' from an earlier test in
+      // this file (one per account, literal:self) - putRecord succeeds
+      // either way, so this setup step doesn't depend on file execution
+      // order the way a plain createRecord would.
+      await strikerAgent.com.atproto.repo.putRecord({
         repo: strikerAgent.assertDid,
         collection: 'site.standard.publication',
-        rkey: pubRkey,
+        rkey: 'self',
         record: {
           $type: 'site.standard.publication',
           url: canonicalUrl('striker.test'),
@@ -242,7 +255,7 @@ describe('articles', () => {
             {
               $type: 'com.atproto.repo.applyWrites#update',
               collection: 'site.standard.publication',
-              rkey: pubRkey,
+              rkey: 'self',
               value: {
                 $type: 'site.standard.publication',
                 url: 'https://evil.example/renamed',
@@ -288,6 +301,111 @@ describe('articles', () => {
           ],
         }),
       ).rejects.toThrow("Document site must be this account's own publication")
+    })
+
+    // "PDS hostname move and public URL scheme", follow-up: the record-key
+    // format (lexicons/site/standard/publication.json's key, literal:self)
+    // is a *separate* enforcement layer from the content checks above, and
+    // the two were never actually exercised together against a real dev-env
+    // PDS before this - every existing test in this file either omitted
+    // `rkey` (silently defaulting to a fresh TID, which happened to satisfy
+    // the *old* upstream `tid` key format) or passed one explicitly, so
+    // none of them proved `'self'` itself is an acceptable - or required -
+    // key. A dry run against a real built image is what actually caught
+    // this: `publishArticle`'s real first-publish call uses exactly the
+    // shape below, and it was rejected outright before ever reaching the
+    // content checks.
+    it("writes publishArticle's real first-publish payload: applyWrites#create for both the publication (rkey 'self') and its document, atomically", async () => {
+      const freshStriker = network.pds.getAgent()
+      await freshStriker.createAccount(
+        {
+          email: 'freshpublish@test.com',
+          handle: 'freshpublish.test',
+          password: 'freshpublish-pass',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+      const path = freshArticlePath()
+
+      const res = await freshStriker.com.atproto.repo.applyWrites({
+        repo: freshStriker.assertDid,
+        writes: [
+          {
+            $type: 'com.atproto.repo.applyWrites#create',
+            collection: 'site.standard.publication',
+            rkey: 'self',
+            value: {
+              $type: 'site.standard.publication',
+              url: canonicalUrl('freshpublish.test'),
+              name: "Fresh Striker's Publication",
+            },
+          },
+          {
+            $type: 'com.atproto.repo.applyWrites#create',
+            collection: 'site.standard.document',
+            rkey: TID.nextStr(),
+            value: {
+              $type: 'site.standard.document',
+              site: publicationSelfUri(freshStriker.assertDid),
+              title: 'First Article',
+              publishedAt: new Date().toISOString(),
+              path,
+            },
+          },
+        ],
+      })
+      expect(res.data.results).toHaveLength(2)
+
+      const pub = await freshStriker.com.atproto.repo.getRecord({
+        repo: freshStriker.assertDid,
+        collection: 'site.standard.publication',
+        rkey: 'self',
+      })
+      expect(pub.data.value).toMatchObject({
+        url: canonicalUrl('freshpublish.test'),
+      })
+    })
+
+    // The inverse of the test above: literal:self is what actually makes
+    // "one publication per account" true server-side, not merely an app
+    // convention nothing enforces. Content here is otherwise entirely
+    // valid (a fresh account's own correct canonical url) specifically so
+    // this rejection is attributable to the record-key check alone, not
+    // the content guard - if `assertCanWriteRecord` ever ran before key
+    // validation instead of after, this test would start failing for the
+    // wrong reason (a content-check error) rather than passing for the
+    // right one.
+    it('rejects a publication written with a TID-format rkey instead of literal self', async () => {
+      const tidStriker = network.pds.getAgent()
+      await tidStriker.createAccount(
+        {
+          email: 'tidrkey@test.com',
+          handle: 'tidrkey.test',
+          password: 'tidrkey-pass',
+          role: 'striker',
+        },
+        {
+          headers: network.pds.adminAuthHeaders(),
+          encoding: 'application/json',
+        },
+      )
+
+      await expect(
+        tidStriker.com.atproto.repo.createRecord({
+          repo: tidStriker.assertDid,
+          collection: 'site.standard.publication',
+          rkey: TID.nextStr(),
+          record: {
+            $type: 'site.standard.publication',
+            url: canonicalUrl('tidrkey.test'),
+            name: "TID-keyed Striker's Publication",
+          },
+        }),
+      ).rejects.toThrow('Invalid record key for site.standard.publication')
     })
 
     // A Catcher's write is rejected by the role gate before the content

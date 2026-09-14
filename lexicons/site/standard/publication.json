@@ -1,8 +1,8 @@
 {
   "defs": {
     "main": {
-      "description": "A publication record representing a blog, website, or content platform. Publications serve as containers for documents and define the overall branding and settings.",
-      "key": "tid",
+      "description": "A publication record representing a blog, website, or content platform. Publications serve as containers for documents and define the overall branding and settings. Sunnahsky fork: one publication per account, keyed literal:self (matching app.bsky.actor.profile's own singleton pattern) rather than upstream's tid - see \"PDS hostname move and public URL scheme\" and assertCanWriteRecord's canonical-URL guard, which assumes exactly one publication per Striker.",
+      "key": "literal:self",
       "record": {
         "properties": {
           "basicTheme": {
