@@ -22,6 +22,10 @@ import { readFileSync, writeFileSync } from 'node:fs'
 const ALLOWLIST = [
   'PDS_HOSTNAME',
   'PDS_PORT',
+  // "PDS hostname move and public URL scheme" additions - both non-secret,
+  // typed fields in env.ts, same as PDS_HOSTNAME above.
+  'PDS_SERVICE_HANDLE_DOMAINS',
+  'PDS_APP_URL',
   'PDS_DATA_DIRECTORY',
   'PDS_BLOBSTORE_DISK_LOCATION',
   'PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX',
