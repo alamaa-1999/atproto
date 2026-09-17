@@ -8,7 +8,16 @@ import { PerDomainIssuanceRateLimiter } from './tls-check-rate-limiter.ts'
 // Infrastructure subdomains that should get a certificate but aren't and
 // never will be account handles - not covered by the account-handle lookup
 // below, so listed explicitly rather than bypassing that check.
-const ADDITIONAL_APPROVED_DOMAINS = new Set(['app.sunnahsky.com'])
+//
+// www.sunnahsky.com was missing here from the original hostname-move build
+// (only app.sunnahsky.com was added) - caught only once Caddy's Stage 1
+// actually tried to get it a certificate under on_demand_tls and /tls-check
+// rejected it outright ("handles are not provided on this domain"), leaving
+// the block permanently uncertified. See HANDOFF.md's 2026-09-14/17 entries.
+const ADDITIONAL_APPROVED_DOMAINS = new Set([
+  'app.sunnahsky.com',
+  'www.sunnahsky.com',
+])
 
 // Caddy 2.9+ removed on_demand_tls's own "interval"/"burst" option, so the
 // ask endpoint below carries its own limiter. Per-domain, 5 approvals per
