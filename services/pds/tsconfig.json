@@ -10,5 +10,9 @@
     // Dockerfile CMD) with no compile step, so a sibling import must name
     // the `.ts` file that actually exists on disk.
     "allowImportingTsExtensions": true,
+    // Node's type stripping also refuses syntax that needs a compile
+    // step, such as parameter properties, enums and namespaces. This makes
+    // tsc reject it too, so the check fails before the container does.
+    "erasableSyntaxOnly": true,
   },
 }
