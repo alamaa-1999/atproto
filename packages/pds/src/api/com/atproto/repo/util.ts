@@ -84,6 +84,17 @@ export const assertCanWriteRecord = (
         'CatcherArticleWriteNotAllowed',
       )
     }
+
+    // "Live now" is for Strikers only (owner decision, 2026-09-24). The app
+    // hides the option from Catchers; this is the enforcement, because any
+    // client can write the record directly. Deletes don't pass through this
+    // guard, so a Catcher can still clear a status.
+    if (collection === app.bsky.actor.status.$type) {
+      throw new InvalidRequestError(
+        'Catchers cannot set a live status.',
+        'CatcherLiveStatusNotAllowed',
+      )
+    }
     return
   }
 

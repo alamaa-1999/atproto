@@ -594,6 +594,86 @@ describe('articles', () => {
     )
   })
 
+  // "Live now" is for Strikers only (owner decision, 2026-09-24).
+  // `assertCanWriteRecord` falls through to allow any collection it doesn't
+  // name, so each write path gets its own rejection test, the same way the
+  // assets record does above.
+  describe('live status is for Strikers only', () => {
+    const liveStatus = () => ({
+      $type: 'app.bsky.actor.status',
+      status: 'app.bsky.actor.status#live',
+      durationMinutes: 60,
+      createdAt: new Date().toISOString(),
+    })
+
+    it('a catcher cannot set a live status with createRecord', async () => {
+      await expect(
+        catcherAgent.com.atproto.repo.createRecord({
+          repo: catcherAgent.assertDid,
+          collection: 'app.bsky.actor.status',
+          rkey: 'self',
+          record: liveStatus(),
+        }),
+      ).rejects.toThrow('Catchers cannot set a live status.')
+    })
+
+    it('a catcher cannot set a live status with putRecord', async () => {
+      await expect(
+        catcherAgent.com.atproto.repo.putRecord({
+          repo: catcherAgent.assertDid,
+          collection: 'app.bsky.actor.status',
+          rkey: 'self',
+          record: liveStatus(),
+        }),
+      ).rejects.toThrow('Catchers cannot set a live status.')
+    })
+
+    it('a catcher cannot set a live status with applyWrites', async () => {
+      await expect(
+        catcherAgent.com.atproto.repo.applyWrites({
+          repo: catcherAgent.assertDid,
+          writes: [
+            {
+              $type: 'com.atproto.repo.applyWrites#create',
+              collection: 'app.bsky.actor.status',
+              rkey: 'self',
+              value: liveStatus(),
+            },
+          ],
+        }),
+      ).rejects.toThrow('Catchers cannot set a live status.')
+    })
+
+    it('a catcher can still delete a live status', async () => {
+      await expect(
+        catcherAgent.com.atproto.repo.deleteRecord({
+          repo: catcherAgent.assertDid,
+          collection: 'app.bsky.actor.status',
+          rkey: 'self',
+        }),
+      ).resolves.toBeDefined()
+    })
+
+    it('a striker can set and clear a live status', async () => {
+      const put = await strikerAgent.com.atproto.repo.putRecord({
+        repo: strikerAgent.assertDid,
+        collection: 'app.bsky.actor.status',
+        rkey: 'self',
+        record: liveStatus(),
+      })
+      expect(put.data.uri).toBe(
+        `at://${strikerAgent.assertDid}/app.bsky.actor.status/self`,
+      )
+      await expect(
+        strikerAgent.com.atproto.repo.deleteRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'app.bsky.actor.status',
+          rkey: 'self',
+        }),
+      ).resolves.toBeDefined()
+    })
+  })
+
   it('writes a document and its companion post atomically, with a pre-computed bskyPostRef', async () => {
     // The companion post's rkey and CID are computed client-side, before
     // either record is submitted, so the document's bskyPostRef can point
