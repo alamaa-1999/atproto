@@ -59,12 +59,49 @@ const canonicalNameSegment = (
 // regardless of what the record contains, never with a publication/document
 // validation error (third review, point 5: those two error identities must
 // not compete for the same Catcher write).
+// Sunnahsky is strictly SFW (owner decisions of 2026-09-24,
+// moderation-plan.md in the workspace). A record may carry only the
+// self-labels the app itself writes: `!no-unauthenticated`, from the
+// logged-out visibility setting, and `graphic-media`, a content warning
+// readers can open. Every other value is refused, the adult labels
+// included, whichever app sends it. An allowlist rather than a list of
+// refused values, so a new or misspelled label can't get through. Deletes
+// don't pass through this guard, so a record that already carries a refused
+// label can still be removed.
+const ALLOWED_SELF_LABELS: ReadonlySet<string> = new Set([
+  '!no-unauthenticated',
+  'graphic-media',
+])
+
+const assertSelfLabelsAllowed = (record: LexMap): void => {
+  const labels = record.labels
+  if (labels == null || typeof labels !== 'object' || Array.isArray(labels)) {
+    return
+  }
+  const values = (labels as { values?: unknown }).values
+  if (!Array.isArray(values)) return
+  for (const value of values) {
+    const val =
+      value != null && typeof value === 'object'
+        ? (value as { val?: unknown }).val
+        : undefined
+    if (typeof val !== 'string' || !ALLOWED_SELF_LABELS.has(val)) {
+      throw new InvalidRequestError(
+        `Sunnahsky doesn't allow the "${String(val)}" label on records.`,
+        'SelfLabelNotAllowed',
+      )
+    }
+  }
+}
+
 export const assertCanWriteRecord = (
   account: ActorAccount,
   collection: NsidString,
   record: LexMap,
   cfg: ServerConfig,
 ): void => {
+  assertSelfLabelsAllowed(record)
+
   if (account.role !== 'striker') {
     if (collection === app.bsky.feed.post.$type) {
       if (record.reply != null) return

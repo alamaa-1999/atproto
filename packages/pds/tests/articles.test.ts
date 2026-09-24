@@ -1,7 +1,8 @@
 import type { AtpAgent } from '@atproto/api'
 import { TID, cidForCbor } from '@atproto/common'
 import { TestNetworkNoAppView } from '@atproto/dev-env'
-import { AtUri } from '@atproto/syntax'
+import { AtUri, type DidString } from '@atproto/syntax'
+import { prepareCreate } from '../src/repo/index.js'
 
 // `PDS_APP_URL` in dev-env's builder (packages/dev-env/src/pds.ts) - the
 // server-side write guard below (assertCanWriteRecord,
@@ -671,6 +672,162 @@ describe('articles', () => {
           rkey: 'self',
         }),
       ).resolves.toBeDefined()
+    })
+  })
+
+  describe('self-labels: only the ones the app writes', () => {
+    const selfLabels = (...vals: string[]) => ({
+      $type: 'com.atproto.label.defs#selfLabels',
+      values: vals.map((val) => ({ val })),
+    })
+    const post = (extra: Record<string, unknown> = {}) => ({
+      $type: 'app.bsky.feed.post',
+      text: 'a post',
+      createdAt: new Date().toISOString(),
+      ...extra,
+    })
+
+    for (const val of ['porn', 'sexual', 'nudity']) {
+      it(`refuses a striker's post labelled ${val}`, async () => {
+        await expect(
+          strikerAgent.com.atproto.repo.createRecord({
+            repo: strikerAgent.assertDid,
+            collection: 'app.bsky.feed.post',
+            record: post({ labels: selfLabels(val) }),
+          }),
+        ).rejects.toThrow(`Sunnahsky doesn't allow the "${val}" label`)
+      })
+    }
+
+    it('refuses an adult label through putRecord and applyWrites', async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.putRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'app.bsky.feed.post',
+          rkey: TID.nextStr(),
+          record: post({ labels: selfLabels('porn') }),
+        }),
+      ).rejects.toThrow('Sunnahsky doesn\'t allow the "porn" label')
+      await expect(
+        strikerAgent.com.atproto.repo.applyWrites({
+          repo: strikerAgent.assertDid,
+          writes: [
+            {
+              $type: 'com.atproto.repo.applyWrites#create',
+              collection: 'app.bsky.feed.post',
+              value: post({ labels: selfLabels('graphic-media', 'sexual') }),
+            },
+          ],
+        }),
+      ).rejects.toThrow('Sunnahsky doesn\'t allow the "sexual" label')
+    })
+
+    it("refuses a catcher's reply labelled sexual", async () => {
+      const root = await strikerAgent.com.atproto.repo.createRecord({
+        repo: strikerAgent.assertDid,
+        collection: 'app.bsky.feed.post',
+        record: post(),
+      })
+      const ref = { uri: root.data.uri, cid: root.data.cid }
+      await expect(
+        catcherAgent.com.atproto.repo.createRecord({
+          repo: catcherAgent.assertDid,
+          collection: 'app.bsky.feed.post',
+          record: post({
+            reply: { root: ref, parent: ref },
+            labels: selfLabels('sexual'),
+          }),
+        }),
+      ).rejects.toThrow('Sunnahsky doesn\'t allow the "sexual" label')
+    })
+
+    it('refuses a profile labelled nudity, and a label the app never writes', async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.putRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'app.bsky.actor.profile',
+          rkey: 'self',
+          record: {
+            $type: 'app.bsky.actor.profile',
+            labels: selfLabels('nudity'),
+          },
+        }),
+      ).rejects.toThrow('Sunnahsky doesn\'t allow the "nudity" label')
+      await expect(
+        strikerAgent.com.atproto.repo.createRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'app.bsky.feed.post',
+          record: post({ labels: selfLabels('something-new') }),
+        }),
+      ).rejects.toThrow('Sunnahsky doesn\'t allow the "something-new" label')
+    })
+
+    it('accepts graphic media, logged-out visibility, and no labels', async () => {
+      await expect(
+        strikerAgent.com.atproto.repo.createRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'app.bsky.feed.post',
+          record: post({ labels: selfLabels('graphic-media') }),
+        }),
+      ).resolves.toBeDefined()
+      await expect(
+        strikerAgent.com.atproto.repo.putRecord({
+          repo: strikerAgent.assertDid,
+          collection: 'app.bsky.actor.profile',
+          rkey: 'self',
+          record: {
+            $type: 'app.bsky.actor.profile',
+            labels: selfLabels('!no-unauthenticated'),
+          },
+        }),
+      ).resolves.toBeDefined()
+      await expect(
+        catcherAgent.com.atproto.repo.putRecord({
+          repo: catcherAgent.assertDid,
+          collection: 'app.bsky.actor.profile',
+          rkey: 'self',
+          record: { $type: 'app.bsky.actor.profile' },
+        }),
+      ).resolves.toBeDefined()
+    })
+
+    it('still lets an author delete a post that already carries a refused label', async () => {
+      // Written straight into the repo, around the write routes and their
+      // guard, as a post made before the rule would have been.
+      const did = strikerAgent.assertDid as DidString
+      const write = await prepareCreate({
+        did,
+        collection: 'app.bsky.feed.post',
+        record: post({ labels: selfLabels('porn') }),
+        validate: true,
+      })
+      await network.pds.ctx.actorStore.transact(did, async (store) => {
+        const commit = await store.repo.formatCommit([write])
+        await store.repo.storage.applyCommit(commit)
+        await store.repo.indexWrites([write], new Date().toISOString())
+      })
+      const rkey = write.uri.rkey
+      const existing = await strikerAgent.com.atproto.repo.getRecord({
+        repo: did,
+        collection: 'app.bsky.feed.post',
+        rkey,
+      })
+      expect(existing.data.value).toMatchObject({
+        labels: selfLabels('porn'),
+      })
+
+      await strikerAgent.com.atproto.repo.deleteRecord({
+        repo: did,
+        collection: 'app.bsky.feed.post',
+        rkey,
+      })
+      await expect(
+        strikerAgent.com.atproto.repo.getRecord({
+          repo: did,
+          collection: 'app.bsky.feed.post',
+          rkey,
+        }),
+      ).rejects.toThrow()
     })
   })
 
