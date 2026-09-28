@@ -17,6 +17,17 @@ describe('handle validation', () => {
     expectThrow('barackobama.test', 'Reserved handle')
   })
 
+  it("reserves the host names of Sunnahsky's own services", () => {
+    const domains = ['.sunnahsky.com']
+    expect(() =>
+      ensureHandleServiceConstraints('ozone.sunnahsky.com', domains),
+    ).toThrow('Reserved handle')
+    // An admin can still assign it, as with every reserved handle.
+    expect(() =>
+      ensureHandleServiceConstraints('ozone.sunnahsky.com', domains, true),
+    ).not.toThrow()
+  })
+
   it('handles bad tlds', () => {
     expect(isValidTld('atproto.local')).toBe(false)
     expect(isValidTld('atproto.arpa')).toBe(false)

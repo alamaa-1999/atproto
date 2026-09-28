@@ -1064,6 +1064,15 @@ const sunnahskyRoutes = [
 ]
 
 /**
+ * Host names of Sunnahsky's own services under the handle domain that the
+ * generic lists above don't cover. A handle equal to one would share its DNS
+ * name with the service. `ozone.sunnahsky.com` is Sunnahsky's moderation
+ * service (sunnahsky-ozone-plan.md in the workspace); `pds`, `app`, `www` and
+ * `guest` are already in the lists above.
+ */
+const sunnahskyServiceHosts = ['ozone']
+
+/**
  * Handles held for real Strikers ahead of the account-recreation step in
  * "PDS hostname move and public URL scheme" - a temporary, owner-managed
  * hold, not the permanent reserved-word policy above. Remove an entry here
@@ -1084,6 +1093,7 @@ export const reservedSubdomains: Record<string, boolean> = [
   ...commonlyReserved,
   ...famousAccounts,
   ...sunnahskyRoutes,
+  ...sunnahskyServiceHosts,
   ...sunnahskyHeldHandles,
 ].reduce((acc, cur) => {
   return {
