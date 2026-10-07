@@ -61,6 +61,10 @@ export class TestPds {
       termsOfServiceUrl: 'https://bsky.social/about/support/tos',
       privacyPolicyUrl: 'https://bsky.social/about/support/privacy-policy',
       supportUrl: 'https://blueskyweb.zendesk.com/hc/en-us',
+      // Sunnahsky: upstream's test seeds write made-up self-labels, which the
+      // PDS's self-label rule refuses. Tests of that rule pass
+      // `allowAnySelfLabel: false` to turn it back on.
+      allowAnySelfLabel: true,
       ...config,
     })
 

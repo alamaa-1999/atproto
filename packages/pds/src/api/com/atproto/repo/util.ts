@@ -100,7 +100,7 @@ export const assertCanWriteRecord = (
   record: LexMap,
   cfg: ServerConfig,
 ): void => {
-  assertSelfLabelsAllowed(record)
+  if (!cfg.service.allowAnySelfLabel) assertSelfLabelsAllowed(record)
 
   if (account.role !== 'striker') {
     if (collection === app.bsky.feed.post.$type) {

@@ -31,6 +31,8 @@ describe('articles', () => {
   beforeAll(async () => {
     network = await TestNetworkNoAppView.create({
       dbPostgresSchema: 'articles',
+      // The self-label rule is off by default in dev-env; its tests below need it on.
+      pds: { allowAnySelfLabel: false },
     })
     strikerAgent = network.pds.getAgent()
     striker2Agent = network.pds.getAgent()

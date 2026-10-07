@@ -77,6 +77,7 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     maxImportSize: env.maxImportSize,
     blobUploadLimit: env.blobUploadLimit ?? 5 * 1024 * 1024, // 5mb
     devMode: env.devMode ?? false,
+    allowAnySelfLabel: env.allowAnySelfLabel === true,
   }
 
   const dbLoc = (name: string) => {
@@ -458,6 +459,8 @@ export type ServiceConfig = {
   blobUploadLimit: number
   contactEmailAddress?: string
   devMode: boolean
+  /** Sunnahsky: see `allowAnySelfLabel` in `env.ts`. Off unless code sets it. */
+  allowAnySelfLabel: boolean
 }
 
 export type DatabaseConfig = {

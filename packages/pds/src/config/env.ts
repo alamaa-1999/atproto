@@ -156,4 +156,13 @@ export function readEnv() {
   }
 }
 
-export type ServerEnvironment = Partial<ReturnType<typeof readEnv>>
+export type ServerEnvironment = Partial<ReturnType<typeof readEnv>> & {
+  /**
+   * Sunnahsky: lets a record carry any self-label, switching off the rule in
+   * `api/com/atproto/repo/util.ts`. Deliberately read from no environment
+   * variable, so no production configuration can set it: only code that builds
+   * the environment itself can, which is the dev-env test fixture, because
+   * upstream's test seeds write made-up self-labels.
+   */
+  allowAnySelfLabel?: boolean
+}
