@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Administrative action to promote an existing Catcher account to Striker. Migrates the account's handle from the Catcher (guest) domain to the Striker domain, then updates its role. Both steps are handled together; there is no separate route to change role alone.",
+      "description": "Administrative action to promote an existing Catcher account to Striker. Migrates the account's handle from the Catcher (guest) domain to the Striker domain, then updates its role. Both steps are handled together; there is no separate route to change role alone. Accepts the admin password, or a full password session (not an app password, not OAuth) of an active account on the PDS's admin list, which must also send its own password. Calling it for an account that is already a Striker repeats only the identity refresh and check. Every attempt by an identified caller is recorded, refusals included.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -15,6 +15,10 @@
               "type": "string",
               "format": "at-identifier",
               "description": "The handle or DID of the Catcher account to promote."
+            },
+            "password": {
+              "type": "string",
+              "description": "The calling admin account's own password, checked again for this request. Required with an admin account's session; ignored with the admin password."
             }
           }
         }
@@ -23,13 +27,46 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["did", "handle"],
+          "required": ["did", "handle", "outcome", "handleConfirmed"],
           "properties": {
-            "did": { "type": "string", "format": "did" },
-            "handle": { "type": "string", "format": "handle" }
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "handle": {
+              "type": "string",
+              "format": "handle"
+            },
+            "outcome": {
+              "type": "string",
+              "knownValues": ["promoted", "rechecked"],
+              "description": "promoted: the role changed now. rechecked: the account was already a Striker, so only the identity refresh and check ran."
+            },
+            "handleConfirmed": {
+              "type": "boolean",
+              "description": "Whether the account's DID document names the new handle and the handle resolves back to the account. If false, the role change stands; call again to repeat the identity refresh and check."
+            }
           }
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "NotAdmin",
+          "description": "The calling account is not on the PDS's admin list."
+        },
+        {
+          "name": "PasswordRequired",
+          "description": "An admin account's session must send the account's own password."
+        },
+        {
+          "name": "IncorrectPassword",
+          "description": "The password sent is not the calling account's password."
+        },
+        {
+          "name": "SelfPromotion",
+          "description": "An admin account cannot promote itself."
+        }
+      ]
     }
   }
 }

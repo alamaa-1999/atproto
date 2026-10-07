@@ -299,6 +299,49 @@ export class AuthVerifier {
     }
   }
 
+  /**
+   * Sunnahsky: a password session only (a bearer access token), never an
+   * OAuth token. `authorization()` also admits OAuth tokens (DPoP), whose
+   * permissions `scopes` doesn't limit; with `ACCESS_FULL` this also refuses
+   * app passwords. For the fork's admin checks (account-management-plan.md in
+   * the workspace).
+   */
+  public passwordSession<S extends AuthScope>(
+    options: VerifiedOptions & Required<ScopedOptions<S>>,
+  ): MethodAuthVerifier<AccessOutput<S>> {
+    const access = this.access(options)
+    return async (ctx) => {
+      const type = extractAuthType(ctx.req)
+      if (type === AuthType.BEARER) {
+        return access(ctx)
+      }
+      setAuthHeaders(ctx.res)
+      if (type !== null) {
+        throw new InvalidRequestError(
+          'Unexpected authorization type',
+          'InvalidToken',
+        )
+      }
+      throw new AuthRequiredError(undefined, 'AuthMissing')
+    }
+  }
+
+  /**
+   * Sunnahsky: the admin password, or a password session as
+   * `passwordSession` accepts it.
+   */
+  public adminTokenOrPasswordSession<S extends AuthScope>(
+    options: VerifiedOptions & Required<ScopedOptions<S>>,
+  ): MethodAuthVerifier<AdminTokenOutput | AccessOutput<S>> {
+    const session = this.passwordSession(options)
+    return async (ctx) => {
+      if (extractAuthType(ctx.req) === AuthType.BASIC) {
+        return this.adminToken(ctx)
+      }
+      return session(ctx)
+    }
+  }
+
   public authorizationOrAdminTokenOptional<P extends Params>(
     opts: VerifiedOptions & ExtraScopedOptions & AuthorizedOptions<P>,
   ): MethodAuthVerifier<

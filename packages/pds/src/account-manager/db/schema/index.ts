@@ -8,6 +8,7 @@ import type * as device from './device.js'
 import type * as emailToken from './email-token.js'
 import type * as inviteCode from './invite-code.js'
 import type * as lexicon from './lexicon.js'
+import type * as promotionRecord from './promotion-record.js'
 import type * as refreshToken from './refresh-token.js'
 import type * as repoRoot from './repo-root.js'
 import type * as token from './token.js'
@@ -26,7 +27,8 @@ export type DatabaseSchema = actor.PartialDB &
   repoRoot.PartialDB &
   inviteCode.PartialDB &
   lexicon.PartialDB &
-  emailToken.PartialDB
+  emailToken.PartialDB &
+  promotionRecord.PartialDB
 
 export type { AccountType, Actor, ActorEntry, Role } from './actor.js'
 export type { Account, AccountEntry } from './account.js'
@@ -41,3 +43,4 @@ export type { RefreshToken } from './refresh-token.js'
 export type { AppPassword } from './app-password.js'
 export type { InviteCode, InviteCodeUse } from './invite-code.js'
 export type { EmailToken, EmailTokenPurpose } from './email-token.js'
+export type { PromotionOutcome, PromotionRecord } from './promotion-record.js'

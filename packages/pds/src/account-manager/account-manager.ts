@@ -5,7 +5,7 @@ import { isEmailValid } from '@hapi/address'
 import { isDisposableEmail } from 'disposable-email-domains-js'
 import { HOUR, wait } from '@atproto/common'
 import type { Keypair } from '@atproto/crypto'
-import type { IdResolver } from '@atproto/identity'
+import { type IdResolver, getHandle } from '@atproto/identity'
 import {
   type AtIdentifierString,
   type DidString,
@@ -50,6 +50,7 @@ import * as authorizedClientHelper from './helpers/authorized-client.js'
 import * as emailToken from './helpers/email-token.js'
 import * as invite from './helpers/invite.js'
 import * as password from './helpers/password.js'
+import * as promotionRecord from './helpers/promotion-record.js'
 import * as repo from './helpers/repo.js'
 import * as scrypt from './helpers/scrypt.js'
 import * as token from './helpers/token.js'
@@ -507,16 +508,42 @@ export class AccountManager {
    * ordering matters). The only public entry point that can change `role`
    * post-creation; there is deliberately no standalone "set role" method, so
    * this coupling can't be bypassed by a future call site.
+   *
+   * Sunnahsky (account-management-plan.md in the workspace): `attempt` says
+   * who asked and for which account, and goes into the promotion record,
+   * written in the same transaction as the role change. Afterwards the
+   * identity is refreshed and checked (`refreshAndConfirmIdentity`). An
+   * account that is already a Striker gets only that refresh and check, so a
+   * promotion whose identity step failed can be finished by calling again.
    */
   async promoteToStriker(
     did: DidString,
-  ): Promise<ActorAccount & { handle: HandleString }> {
+    attempt: { actor: string; subject: string },
+  ): Promise<
+    ActorAccount & {
+      handle: HandleString
+      outcome: 'promoted' | 'rechecked'
+      handleConfirmed: boolean
+    }
+  > {
     const account = await this.getAccount(did, { includeDeactivated: true })
     if (!account) {
       throw new InvalidRequestError('Account not found')
     }
     if (account.role === 'striker') {
-      throw new InvalidRequestError('Account is already a Striker')
+      if (!account.handle) {
+        throw new InvalidRequestError('Account has no handle to check')
+      }
+      const handle = account.handle as HandleString
+      await promotionRecord.insertPromotionRecord(this.db, {
+        ...attempt,
+        subjectDid: did,
+        handleBefore: handle,
+        handleAfter: handle,
+        outcome: 'rechecked',
+      })
+      const handleConfirmed = await this.refreshAndConfirmIdentity(did, handle)
+      return { ...account, handle, outcome: 'rechecked', handleConfirmed }
     }
 
     const { catcherHandleDomain, strikerHandleDomain } = this.cfg.identity
@@ -540,6 +567,15 @@ export class AccountManager {
       const newHandle = `${name}${strikerHandleDomain}` as HandleString
 
       this.ensureHandleMatchesRole(newHandle, 'striker')
+
+      // Sunnahsky: the reserved-word, length and character rules every new
+      // handle must pass, with no admin override. Promotion used to check only
+      // the role and collisions, so a Catcher registered under a word reserved
+      // later would have been handed it (account-management-plan.md).
+      ensureHandleServiceConstraints(
+        newHandle,
+        this.cfg.identity.serviceHandleDomains,
+      )
 
       // Same collision check validateHandleUpdate does before any real handle
       // change — the derived handle is deterministic, but not guaranteed
@@ -585,9 +621,88 @@ export class AccountManager {
       await accountHelpers.setRole(dbTxn, did, 'striker')
       await auth.revokeRefreshTokensByDid(dbTxn, did)
       await token.removeByDid(dbTxn, did)
+      // Sunnahsky: in the same transaction, so there is no promotion without
+      // its record.
+      await promotionRecord.insertPromotionRecord(dbTxn, {
+        ...attempt,
+        subjectDid: did,
+        handleBefore: account.handle,
+        handleAfter: handle,
+        outcome: 'promoted',
+      })
     })
 
-    return { ...account, role: 'striker', handle }
+    const handleConfirmed = await this.refreshAndConfirmIdentity(did, handle)
+    return {
+      ...account,
+      role: 'striker',
+      handle,
+      outcome: 'promoted',
+      handleConfirmed,
+    }
+  }
+
+  /**
+   * Sunnahsky: after a promotion, refreshes the PDS's cached DID document,
+   * announces the identity again, and checks the handle both ways: the DID
+   * document names it, and it resolves back to the DID. Each step answers one
+   * of the stale caches in the workspace's 2026-09-17 engineering note.
+   * Bluesky's AppView is only asked to check again; nothing here can confirm
+   * that it did.
+   */
+  private async refreshAndConfirmIdentity(
+    did: DidString,
+    handle: HandleString,
+  ): Promise<boolean> {
+    let confirmed = true
+    try {
+      const doc = await this.idResolver.did.resolve(did, true)
+      if (!doc || getHandle(doc) !== handle) confirmed = false
+    } catch (err) {
+      httpLogger.warn({ err, did }, 'promotion: could not refresh DID document')
+      confirmed = false
+    }
+    try {
+      await this.sequencer.sequenceIdentity(did, handle)
+    } catch (err) {
+      httpLogger.error(
+        { err, did, handle },
+        'promotion: identity not sequenced',
+      )
+      confirmed = false
+    }
+    try {
+      if ((await this.idResolver.handle.resolve(handle)) !== did) {
+        confirmed = false
+      }
+    } catch (err) {
+      httpLogger.warn(
+        { err, handle },
+        'promotion: could not resolve new handle',
+      )
+      confirmed = false
+    }
+    return confirmed
+  }
+
+  /** Sunnahsky: whether `did` is on `PDS_SUNNAHSKY_ADMIN_DIDS`. */
+  isSunnahskyAdmin(did: DidString): boolean {
+    return this.cfg.service.sunnahskyAdminDids.includes(did)
+  }
+
+  /** Sunnahsky: records a refused promotion attempt. */
+  async recordRefusedPromotion(
+    entry: Omit<promotionRecord.PromotionRecordEntry, 'outcome'>,
+  ): Promise<void> {
+    await promotionRecord.insertPromotionRecord(this.db, {
+      ...entry,
+      outcome: 'refused',
+    })
+  }
+
+  /** Sunnahsky: the promotion record, newest first. */
+  async listPromotionRecords(opts: { limit: number; before?: number }) {
+    return promotionRecord.listPromotionRecords(this.db, opts)
   }
 
   async deleteAccount(did: DidString) {

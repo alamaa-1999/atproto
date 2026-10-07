@@ -63,6 +63,25 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     appUrl = parsed.origin
   }
 
+  /*
+   * Sunnahsky: the accounts allowed to promote Catchers to Strikers from the
+   * app (account-management-plan.md in the workspace), on top of the admin
+   * password. DIDs only, since handles can change hands. A malformed entry
+   * stops the PDS from starting rather than being skipped, so a typo can't
+   * silently leave an admin off the list or let something else onto it.
+   * Unset or empty means only the admin password can promote.
+   */
+  const sunnahskyAdminDids: DidString[] = []
+  for (const entry of env.sunnahskyAdminDids ?? []) {
+    const candidate = entry.trim()
+    if (!isValidDid(candidate)) {
+      throw new Error(
+        `PDS_SUNNAHSKY_ADMIN_DIDS must be DIDs separated by commas; not a DID: ${JSON.stringify(entry)}`,
+      )
+    }
+    sunnahskyAdminDids.push(candidate as DidString)
+  }
+
   const serviceCfg: ServerConfig['service'] = {
     port,
     hostname,
@@ -78,6 +97,7 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     blobUploadLimit: env.blobUploadLimit ?? 5 * 1024 * 1024, // 5mb
     devMode: env.devMode ?? false,
     allowAnySelfLabel: env.allowAnySelfLabel === true,
+    sunnahskyAdminDids,
   }
 
   const dbLoc = (name: string) => {
@@ -461,6 +481,11 @@ export type ServiceConfig = {
   devMode: boolean
   /** Sunnahsky: see `allowAnySelfLabel` in `env.ts`. Off unless code sets it. */
   allowAnySelfLabel: boolean
+  /**
+   * Sunnahsky: accounts allowed to promote Catchers, from
+   * `PDS_SUNNAHSKY_ADMIN_DIDS`. Read on every request, never stored in a session.
+   */
+  sunnahskyAdminDids: DidString[]
 }
 
 export type DatabaseConfig = {

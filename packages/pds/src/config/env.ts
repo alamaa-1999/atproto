@@ -6,6 +6,8 @@ export function readEnv() {
     port: envInt('PDS_PORT'),
     hostname: envStr('PDS_HOSTNAME'),
     appUrl: envStr('PDS_APP_URL'),
+    // Sunnahsky: accounts allowed to promote Catchers (config.ts)
+    sunnahskyAdminDids: envList('PDS_SUNNAHSKY_ADMIN_DIDS'),
     serviceDid: envStr('PDS_SERVICE_DID'),
     serviceName: envStr('PDS_SERVICE_NAME'),
     version: envStr('PDS_VERSION'),

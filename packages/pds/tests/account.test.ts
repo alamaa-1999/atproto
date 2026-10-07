@@ -751,7 +751,7 @@ describe('account', () => {
       expect(accnt?.handle).toBe('promote-me.test')
     })
 
-    it('rejects promoting an account that is already a Striker', async () => {
+    it('rechecks an account that is already a Striker instead of refusing', async () => {
       await freshAgent.api.com.atproto.server.createAccount(
         {
           email: 'already-striker@test.com',
@@ -765,15 +765,24 @@ describe('account', () => {
         },
       )
 
-      await expect(
-        freshAgent.api.com.atproto.admin.promoteAccountToStriker(
+      const res =
+        await freshAgent.api.com.atproto.admin.promoteAccountToStriker(
           { account: 'already-striker.test' },
           {
             headers: network.pds.adminAuthHeaders(),
             encoding: 'application/json',
           },
-        ),
-      ).rejects.toThrow('Account is already a Striker')
+        )
+
+      // Sunnahsky: only the identity refresh and check run again, so a
+      // promotion whose identity step failed can be finished this way.
+      expect(res.data).toMatchObject({
+        handle: 'already-striker.test',
+        outcome: 'rechecked',
+        handleConfirmed: true,
+      })
+      const accnt = await ctx.accountManager.getAccount('already-striker.test')
+      expect(accnt?.role).toBe('striker')
     })
 
     it('rejects promoting a nonexistent account', async () => {

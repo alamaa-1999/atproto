@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.temp.checkAdmin",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Reports whether the calling account may promote members: it is on the PDS's admin list, active, and signed in with a full password session rather than an app password. Answers only about the caller. Requires a password session; OAuth is refused. THIS IS A TEMPORARY UNSPECCED ROUTE, specific to this fork's admin list.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["isAdmin"],
+          "properties": {
+            "isAdmin": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}
